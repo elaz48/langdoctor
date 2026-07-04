@@ -47,10 +47,14 @@ def test_clean_project_exits_zero():
 
 
 def test_heuristic_only_findings_need_strict(tmp_path):
-    (tmp_path / "requirements.txt").write_text("langgraph<1.0.0\n", encoding="utf-8")
+    # A lone ChatOpenAI() with no timeout -> only LD302 (heuristic, low). No deps,
+    # so no LD501/version findings muddy the exit-code behaviour.
+    (tmp_path / "agent.py").write_text(
+        "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model='gpt-4o')\n",
+        encoding="utf-8",
+    )
     findings = run_checks(scan(tmp_path))
-    assert all(f.heuristic for f in findings)
-    # LD102 is medium severity and heuristic: default fail-on=high ignores it anyway,
-    # but even fail-on=medium must not trip without --strict.
-    assert exit_code_for(findings, fail_on="medium", strict=False) == 0
-    assert exit_code_for(findings, fail_on="medium", strict=True) == 1
+    assert findings and all(f.heuristic for f in findings)
+    assert {f.id for f in findings} == {"LD302"}
+    assert exit_code_for(findings, fail_on="low", strict=False) == 0
+    assert exit_code_for(findings, fail_on="low", strict=True) == 1

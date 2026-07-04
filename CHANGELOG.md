@@ -14,3 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `advisories.json` seeded with the verified LD1xx catalog (LD101–LD111 + the
   LD150 Langflow catch-all), with CVSS-derived severity, `exploited_in_the_wild`
   (KEV) flags, and `aliases`.
+- Phase 2 full check catalog — AST/file-heuristic code-pattern checks:
+  - Checkpointer/state: LD201 (MemorySaver in prod), LD202 (SqliteSaver
+    concurrency), LD204 (interrupts without checkpointer).
+  - Graph/runtime config: LD301 (no recursion_limit), LD302 (no LLM timeout,
+    heuristic), LD303 (deprecated pre-1.0 imports), LD304 (legacy load_prompt).
+  - Secrets/exposure: LD401 (hardcoded API keys), LD402 (.env not gitignored),
+    LD403 (Langflow auto-login not disabled), LD203 (checkpoint filter from
+    user input, heuristic).
+  - Hygiene: LD501 (unpinned dependencies), LD502 (unpinned GitHub Actions).
+  - Shared `analysis.py` (cached AST parsing + helpers); checks auto-register.

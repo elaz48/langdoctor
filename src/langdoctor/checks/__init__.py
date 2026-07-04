@@ -50,4 +50,10 @@ def register_check(
 
 
 def all_checks() -> list[RegisteredCheck]:
-    return list(CHECK_REGISTRY.values())
+    return sorted(CHECK_REGISTRY.values(), key=lambda c: c.id)
+
+
+# Import check modules for their registration side effects. Kept at the bottom so
+# register_check is defined before the submodules reference it. (versions.py is
+# data-driven and invoked directly by the engine, so it is intentionally absent.)
+from . import checkpointer, config, exposure, hygiene, secrets  # noqa: E402,F401
