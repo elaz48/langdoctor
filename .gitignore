@@ -1,2 +1,15 @@
 # ECC / Claude Code project harness (local-only)
 .claude/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/

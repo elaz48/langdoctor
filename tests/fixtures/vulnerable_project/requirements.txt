@@ -1,0 +1,6 @@
+# A deliberately vulnerable sample project for langdoctor tests.
+langgraph==1.0.5
+langgraph-checkpoint-sqlite==2.0.5
+langchain-core==1.2.0
+langflow==1.2.0
+rich>=13.0

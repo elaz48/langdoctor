@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langdoctor"
+dynamic = ["version"]
+description = "Production-readiness and security audit CLI for LangGraph / LangChain projects — brew doctor for your agent stack."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Balazs Hende" }]
+keywords = [
+    "langgraph", "langchain", "langflow", "security", "sast",
+    "ai-agents", "llm-security", "devsecops", "cli",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "rich>=13.0",
+    "packaging>=23.0",
+    "tomli>=2.0 ; python_version < '3.11'",
+]
+
+[project.urls]
+Homepage = "https://langdoctor.dev"
+Repository = "https://github.com/elaz48/langdoctor"
+Issues = "https://github.com/elaz48/langdoctor/issues"
+
+[project.scripts]
+langdoctor = "langdoctor.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.hatch.version]
+path = "src/langdoctor/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/langdoctor"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/langdoctor/data/advisories.json" = "langdoctor/data/advisories.json"
+
+# Example of langdoctor's own project config surface (spec §6). Defaults shown.
+[tool.langdoctor]
+fail-on = "high"
+ignore = []          # e.g. ["LD203", "LD302"]
+exclude = [".venv", "build", "dist"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
