@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>langdoctor — CVE & production audit for your LangGraph/LangChain stack</title>
+<meta name="description" content="langdoctor scans your LangGraph, LangChain, and Langflow projects for known CVEs, insecure configs, and production footguns — deterministic, offline, no API key.">
+<meta name="theme-color" content="#0a0e16">
+<link rel="canonical" href="https://langdoctor.dev/">
+
+<!-- Open Graph / Twitter -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://langdoctor.dev/">
+<meta property="og:title" content="langdoctor — scan your agent stack for CVEs & footguns">
+<meta property="og:description" content="Known CVEs, insecure configs, and production footguns in LangGraph/LangChain/Langflow projects — in seconds, offline, no API key.">
+<meta property="og:image" content="https://langdoctor.dev/og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="langdoctor — scan your agent stack for CVEs & footguns">
+<meta name="twitter:description" content="Known CVEs, insecure configs, and production footguns in LangGraph/LangChain/Langflow projects — in seconds, offline, no API key.">
+<meta name="twitter:image" content="https://langdoctor.dev/og.png">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 3v6a5 5 0 0 0 10 0V3'/%3E%3Cpath d='M9 14v2a5 5 0 0 0 10 0v-1'/%3E%3Ccircle cx='20' cy='11' r='2.5'/%3E%3C/svg%3E">
+
+<style>
+  *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#0a0e16; --bg2:#0c111c; --surface:#111726; --surface2:#0e1523;
+    --line:#1f2937; --line2:#28344a; --text:#e6eef7; --dim:#8a99ad; --dim2:#647084;
+    --green:#34d399; --green-d:#0f2a22;
+    --crit:#ff5f56; --high:#fb923c; --med:#ffbd2e; --low:#38bdf8; --info:#7c8aa0;
+    --mono:ui-monospace,"DejaVu Sans Mono","SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:"DejaVu Sans",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --maxw:1080px;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  a{color:inherit; text-decoration:none}
+  ::selection{background:rgba(52,211,153,.28)}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+  .eyebrow{font-family:var(--mono); font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--green); font-weight:600}
+  section{padding:84px 0; position:relative}
+  h2{font-size:clamp(1.7rem,1.1rem+2.2vw,2.6rem); font-weight:800; letter-spacing:-.02em; margin:10px 0 6px}
+  .lede{color:var(--dim); font-size:1.05rem; max-width:60ch}
+
+  /* nav */
+  header{position:sticky; top:0; z-index:50; backdrop-filter:blur(12px);
+    background:rgba(10,14,22,.72); border-bottom:1px solid var(--line)}
+  nav{display:flex; align-items:center; gap:22px; height:60px}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:1.15rem; letter-spacing:-.02em}
+  .brand svg{width:24px; height:24px; color:var(--green)}
+  .brand b{color:var(--green)}
+  nav .spacer{flex:1}
+  nav a.navlink{color:var(--dim); font-size:.92rem; font-weight:600; transition:color .15s}
+  nav a.navlink:hover{color:var(--text)}
+  @media(max-width:680px){ nav a.navlink[data-opt]{display:none} }
+
+  /* hero */
+  .hero{padding-top:70px; padding-bottom:40px; position:relative}
+  .hero::before{content:""; position:absolute; inset:-200px 0 auto 0; height:640px; z-index:-1;
+    background:
+      radial-gradient(720px 420px at 18% 0%, rgba(52,211,153,.15), transparent 60%),
+      radial-gradient(620px 420px at 92% 12%, rgba(255,95,86,.10), transparent 55%);
+    mask-image:linear-gradient(#000,transparent)}
+  .grid-bg{position:absolute; inset:0; z-index:-1; pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+    background-size:44px 44px; mask-image:radial-gradient(circle at 30% 20%,#000,transparent 72%)}
+  h1{font-size:clamp(2.3rem,1.3rem+4.4vw,4rem); line-height:1.04; font-weight:850; letter-spacing:-.03em; margin:18px 0 18px; max-width:16ch}
+  h1 .accent{color:var(--green)}
+  .sub{font-size:1.2rem; color:var(--dim); max-width:54ch}
+  .sub b{color:var(--text); font-weight:600}
+  .cta{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:30px}
+  .cmd{display:inline-flex; align-items:center; gap:14px; font-family:var(--mono); font-size:1rem;
+    background:var(--surface2); border:1px solid var(--line2); border-radius:12px; padding:12px 14px 12px 18px}
+  .cmd .p{color:var(--green)}
+  .copy{font-family:var(--sans); font-size:.8rem; font-weight:700; color:var(--dim);
+    background:#0a0f19; border:1px solid var(--line2); border-radius:8px; padding:6px 11px; cursor:pointer; transition:.15s}
+  .copy:hover{color:var(--text); border-color:var(--green); background:var(--green-d)}
+  .ghbtn{display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:.95rem;
+    padding:12px 18px; border-radius:12px; border:1px solid var(--line2); background:var(--surface); transition:.15s}
+  .ghbtn:hover{border-color:var(--green); transform:translateY(-1px)}
+  .ghbtn svg{width:18px;height:18px}
+  .pills{display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; font-family:var(--mono); font-size:.82rem; color:var(--dim)}
+  .pill{border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:var(--surface2)}
+  .pill b{color:var(--green)}
+
+  /* terminal */
+  .term{margin-top:44px; background:linear-gradient(180deg,#121a2b,#0d1320); border:1px solid var(--line2);
+    border-radius:16px; overflow:hidden; box-shadow:0 40px 90px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.04)}
+  .term .bar{display:flex; align-items:center; gap:8px; padding:14px 18px; border-bottom:1px solid var(--line)}
+  .tl{width:12px; height:12px; border-radius:50%}
+  .term .barlabel{margin-left:12px; font-family:var(--mono); font-size:.82rem; color:var(--dim2)}
+  .scan{padding:20px 22px; font-family:var(--mono); font-size:.95rem; line-height:1.7; min-height:330px}
+  /* Lines are visible by default (no-JS / reduced-motion safe); JS opts into the reveal. */
+  .ln{transition:opacity .32s ease, transform .32s ease}
+  .scan.animate .ln{opacity:0; transform:translateY(5px)}
+  .scan.animate .ln.show{opacity:1; transform:none}
+  .caret{display:inline-block; width:9px; height:1.05em; background:var(--green); vertical-align:-2px; margin-left:3px; animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .muted{color:var(--dim2)} .p{color:var(--green)}
+  .c-crit{color:var(--crit); font-weight:700} .c-high{color:var(--high)} .c-med{color:var(--med)} .c-low{color:var(--low)} .c-info{color:var(--info)}
+  .fix{color:var(--green)} .title{color:#fff; font-weight:600}
+  .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:9px; vertical-align:middle}
+  .kev{display:inline-block; color:#fff; background:var(--crit); font-family:var(--sans); font-weight:800; font-size:.62rem;
+    letter-spacing:.04em; padding:1px 7px; border-radius:5px; margin-left:8px; vertical-align:middle}
+
+  /* problem cards */
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:34px}
+  @media(max-width:760px){ .cards{grid-template-columns:1fr} }
+  .card{position:relative; background:linear-gradient(180deg,var(--surface),var(--surface2));
+    border:1px solid var(--line); border-radius:16px; padding:26px 24px; overflow:hidden; transition:.2s}
+  .card:hover{border-color:var(--line2); transform:translateY(-3px)}
+  .card::after{content:""; position:absolute; left:0; top:0; height:3px; width:100%; background:var(--accent,var(--green)); opacity:.8}
+  .card .num{font-size:2.7rem; font-weight:850; letter-spacing:-.03em; line-height:1; color:var(--accent,var(--green))}
+  .card p{color:var(--dim); margin-top:12px; font-size:.98rem}
+  .card a.src{display:inline-block; margin-top:16px; font-family:var(--mono); font-size:.76rem; color:var(--dim2); border-bottom:1px dashed var(--line2); transition:.15s}
+  .card a.src:hover{color:var(--green); border-color:var(--green)}
+
+  /* checks table */
+  .tablewrap{margin-top:30px; border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  .tablescroll{overflow-x:auto}
+  table{width:100%; border-collapse:collapse; font-size:.9rem; min-width:560px}
+  thead th{text-align:left; font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--dim2); padding:14px 18px; background:var(--surface2); border-bottom:1px solid var(--line)}
+  tbody td{padding:11px 18px; border-bottom:1px solid rgba(31,41,55,.55); vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:rgba(52,211,153,.035)}
+  td.id{font-family:var(--mono); font-weight:700; color:var(--text); white-space:nowrap}
+  .sevtag{font-family:var(--mono); font-size:.76rem; font-weight:700; white-space:nowrap}
+  .sevtag::before{content:"●"; margin-right:6px}
+  .s-critical{color:var(--crit)} .s-high{color:var(--high)} .s-medium{color:var(--med)} .s-low{color:var(--low)} .s-info{color:var(--info)}
+  .kevmini{color:var(--crit); font-weight:800; font-size:.7rem; margin-left:6px}
+
+  /* CI */
+  .code{margin-top:24px; background:var(--surface2); border:1px solid var(--line2); border-radius:14px; overflow:hidden}
+  .code .head{display:flex; align-items:center; justify-content:space-between; padding:11px 16px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:.8rem; color:var(--dim2)}
+  .code pre{padding:18px 20px; overflow-x:auto; font-family:var(--mono); font-size:.86rem; line-height:1.65; color:#cdd8e6}
+  .code .k{color:#7dd3fc} .code .s{color:var(--green)} .code .c{color:var(--dim2)}
+
+  /* faq */
+  .faq{display:grid; gap:14px; margin-top:30px}
+  details{background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:2px 20px; transition:.15s}
+  details[open]{border-color:var(--line2)}
+  summary{cursor:pointer; list-style:none; padding:18px 0; font-weight:700; font-size:1.05rem; display:flex; align-items:center; gap:12px}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+"; color:var(--green); font-family:var(--mono); font-weight:700; font-size:1.3rem; transition:.2s}
+  details[open] summary::before{transform:rotate(45deg)}
+  details p{color:var(--dim); padding:0 0 20px 32px; max-width:66ch}
+  details p a{color:var(--green); border-bottom:1px solid transparent}
+  details p a:hover{border-color:var(--green)}
+
+  /* footer */
+  footer{border-top:1px solid var(--line); padding:44px 0; margin-top:30px; color:var(--dim2)}
+  .frow{display:flex; flex-wrap:wrap; align-items:center; gap:18px 26px}
+  .frow .brand{font-size:1rem}
+  footer a{color:var(--dim); font-weight:600; transition:.15s}
+  footer a:hover{color:var(--green)}
+  footer .spacer{flex:1}
+  footer .small{font-family:var(--mono); font-size:.78rem}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="wrap">
+    <a class="brand" href="#top" aria-label="langdoctor home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v6a5 5 0 0 0 10 0V3"/><path d="M4 3H2m2 0h2M14 3h-2m2 0h2"/><path d="M9 14v2a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="11" r="2.5"/></svg>
+      lang<b>doctor</b>
+    </a>
+    <span class="spacer"></span>
+    <a class="navlink" data-opt href="#problem">Why</a>
+    <a class="navlink" data-opt href="#checks">Checks</a>
+    <a class="navlink" data-opt href="#ci">CI</a>
+    <a class="navlink" data-opt href="#faq">FAQ</a>
+    <a class="navlink" href="https://pypi.org/project/langdoctor/">PyPI</a>
+    <a class="navlink" href="https://github.com/elaz48/langdoctor">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+<section class="hero wrap">
+  <div class="grid-bg"></div>
+  <div class="eyebrow">brew doctor for your agent stack</div>
+  <h1>Scan your agent stack for <span class="accent">CVEs</span> &amp; production footguns.</h1>
+  <p class="sub"><b>Deterministic. Offline. No API key.</b> langdoctor audits your LangGraph, LangChain, and Langflow projects for known CVEs, insecure checkpointer configs, hardcoded secrets, and the settings that get agents popped in production.</p>
+
+  <div class="cta">
+    <div class="cmd"><span><span class="p">$</span>&nbsp;pipx run langdoctor</span>
+      <button class="copy" data-copy="pipx run langdoctor">Copy</button>
+    </div>
+    <a class="ghbtn" href="https://github.com/elaz48/langdoctor">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      Star on GitHub
+    </a>
+  </div>
+
+  <div class="pills">
+    <span class="pill"><b>0</b> network calls per scan</span>
+    <span class="pill"><b>25</b> checks · advisory DB ships in the package</span>
+    <span class="pill">exit codes · <b>SARIF</b> · JSON · markdown</span>
+  </div>
+
+  <div class="term" role="img" aria-label="Terminal showing a langdoctor scan with a critical Langflow RCE finding">
+    <div class="bar">
+      <span class="tl" style="background:#ff5f56"></span><span class="tl" style="background:#ffbd2e"></span><span class="tl" style="background:#27c93f"></span>
+      <span class="barlabel">langdoctor — scan</span>
+    </div>
+    <div class="scan" id="scan">
+      <div class="ln"><span class="p">$</span> langdoctor<span class="caret"></span></div>
+      <div class="ln">langdoctor&nbsp;&nbsp;<span class="c-crit">2 critical</span>&nbsp;&nbsp;<span class="c-high">5 high</span>&nbsp;&nbsp;<span class="c-med">2 medium</span>&nbsp;&nbsp;<span class="muted">·</span>&nbsp;&nbsp;<span class="c-crit">2 KEV</span></div>
+      <div class="ln muted">scanned ./my-agent</div>
+      <div class="ln">&nbsp;</div>
+      <div class="ln"><span class="dot" style="background:var(--crit)"></span><span class="c-crit">LD106  CRITICAL</span><span class="kev">KEV</span></div>
+      <div class="ln">&nbsp;&nbsp;<span class="title">Unauthenticated RCE in /api/v1/validate/code</span></div>
+      <div class="ln muted">&nbsp;&nbsp;requirements.txt:5 · CVE-2025-3248 · exploited in the wild</div>
+      <div class="ln">&nbsp;&nbsp;<span class="fix">→ pip install "langflow>=1.3.0"</span></div>
+      <div class="ln">&nbsp;</div>
+      <div class="ln"><span class="dot" style="background:var(--crit)"></span><span class="c-crit">LD401  CRITICAL</span></div>
+      <div class="ln">&nbsp;&nbsp;<span class="title">Hardcoded API key in source</span></div>
+      <div class="ln muted">&nbsp;&nbsp;app.py:12</div>
+      <div class="ln">&nbsp;</div>
+      <div class="ln"><span class="dot" style="background:var(--high)"></span><span class="c-high">LD201  HIGH</span></div>
+      <div class="ln">&nbsp;&nbsp;<span class="title">MemorySaver used in a production-bound project</span></div>
+      <div class="ln muted">&nbsp;&nbsp;app.py:9 · state is lost on restart, not shared across replicas</div>
+      <div class="ln">&nbsp;</div>
+      <div class="ln muted">advisories as of 2026-07-04</div>
+    </div>
+  </div>
+</section>
+
+<section id="problem" class="wrap">
+  <div class="eyebrow">The problem</div>
+  <h2>Agents are shipping. So are the CVEs.</h2>
+  <p class="lede">2026 has been a rough year for the LangChain ecosystem. The framework-specific layer is exactly what generic scanners miss.</p>
+  <div class="cards">
+    <div class="card" style="--accent:var(--crit)">
+      <div class="num">7,000+</div>
+      <p>Langflow instances exposed to the internet and hit by unauthenticated RCE — actively exploited to drop botnets.</p>
+      <a class="src" href="https://www.bleepingcomputer.com/news/security/path-traversal-flaw-in-ai-dev-platform-langflow-exploited-in-attacks/">source: BleepingComputer →</a>
+    </div>
+    <div class="card" style="--accent:var(--green)">
+      <div class="num">60M+</div>
+      <p>Monthly downloads across the LangChain / LangGraph ecosystem — an enormous surface for a single bad default or unpinned dependency.</p>
+      <a class="src" href="https://pypistats.org/packages/langchain-core">source: PyPI Stats →</a>
+    </div>
+    <div class="card" style="--accent:var(--high)">
+      <div class="num">7</div>
+      <p>Checkpointer &amp; serializer CVEs patched across the stack in 2025–26. State management is where agents break in production.</p>
+      <a class="src" href="https://github.com/langchain-ai/langgraph/security/advisories">source: GitHub Advisories →</a>
+    </div>
+  </div>
+</section>
+
+<section id="checks" class="wrap">
+  <div class="eyebrow">The catalog</div>
+  <h2>25 checks, every one with a stable ID.</h2>
+  <p class="lede">Suppress by ID, deep-link the docs, fail CI on a threshold. CVE severities are derived from CVSS; <span style="color:var(--crit);font-weight:700">KEV</span> marks known-exploited.</p>
+  <div class="tablewrap"><div class="tablescroll">
+    <table>
+      <thead><tr><th>ID</th><th>Severity</th><th>Category</th><th>What it catches</th></tr></thead>
+      <tbody>
+        <tr><td class="id">LD101</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>SQL injection via metadata filter key (SQLite checkpointer)</td></tr>
+        <tr><td class="id">LD105</td><td><span class="sevtag s-critical">critical</span></td><td>Known CVEs</td><td>Serialization-injection secret extraction in dumps/loads</td></tr>
+        <tr><td class="id">LD106</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Unauthenticated RCE in Langflow /api/v1/validate/code</td></tr>
+        <tr><td class="id">LD111</td><td><span class="sevtag s-high">high</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Path traversal → RCE via Langflow /api/v2/files upload</td></tr>
+        <tr><td class="id">LD150</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>Langflow older than the current secure baseline</td></tr>
+        <tr><td class="id">LD201</td><td><span class="sevtag s-high">high</span></td><td>Checkpointer</td><td>MemorySaver used in a production-bound project</td></tr>
+        <tr><td class="id">LD202</td><td><span class="sevtag s-medium">medium</span></td><td>Checkpointer</td><td>SqliteSaver may collapse under write concurrency</td></tr>
+        <tr><td class="id">LD203</td><td><span class="sevtag s-high">high</span></td><td>Checkpointer</td><td>Checkpoint history filtered by user-controlled input</td></tr>
+        <tr><td class="id">LD204</td><td><span class="sevtag s-medium">medium</span></td><td>Checkpointer</td><td>Compiled graph with interrupts has no checkpointer</td></tr>
+        <tr><td class="id">LD301</td><td><span class="sevtag s-medium">medium</span></td><td>Runtime config</td><td>No recursion_limit — runaway-loop cost risk</td></tr>
+        <tr><td class="id">LD302</td><td><span class="sevtag s-low">low</span></td><td>Runtime config</td><td>LLM client created without a timeout</td></tr>
+        <tr><td class="id">LD303</td><td><span class="sevtag s-info">info</span></td><td>Runtime config</td><td>Deprecated pre-1.0 LangChain import</td></tr>
+        <tr><td class="id">LD304</td><td><span class="sevtag s-high">high</span></td><td>Runtime config</td><td>Legacy load_prompt() usage (path-traversal history)</td></tr>
+        <tr><td class="id">LD401</td><td><span class="sevtag s-critical">critical</span></td><td>Secrets</td><td>Hardcoded API key in source</td></tr>
+        <tr><td class="id">LD402</td><td><span class="sevtag s-high">high</span></td><td>Secrets</td><td>.env file present but not gitignored</td></tr>
+        <tr><td class="id">LD403</td><td><span class="sevtag s-critical">critical</span></td><td>Exposure</td><td>Langflow auto-login not explicitly disabled</td></tr>
+        <tr><td class="id">LD501</td><td><span class="sevtag s-medium">medium</span></td><td>Hygiene</td><td>Dependencies not pinned (supply-chain hardening)</td></tr>
+        <tr><td class="id">LD502</td><td><span class="sevtag s-medium">medium</span></td><td>Hygiene</td><td>GitHub Actions uses an unpinned third-party action</td></tr>
+      </tbody>
+    </table>
+  </div></div>
+  <p class="lede" style="margin-top:16px; font-family:var(--mono); font-size:.85rem">…and more. Run <span style="color:var(--green)">langdoctor list-checks</span> for the full set.</p>
+</section>
+
+<section id="ci" class="wrap">
+  <div class="eyebrow">Ships to CI</div>
+  <h2>One step. Findings in your Security tab.</h2>
+  <p class="lede">SARIF output wires straight into GitHub code scanning. Also runs as a pre-commit hook and in GitLab CI.</p>
+  <div class="code">
+    <div class="head"><span>.github/workflows/langdoctor.yml</span>
+      <button class="copy" data-copy='name: langdoctor
+on: [push, pull_request]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: elaz48/langdoctor@v1
+        with:
+          fail-on: high
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: langdoctor.sarif'>Copy</button>
+    </div>
+<pre><span class="k">name</span>: langdoctor
+<span class="k">on</span>: [push, pull_request]
+<span class="k">permissions</span>:
+  <span class="k">contents</span>: read
+  <span class="k">security-events</span>: write   <span class="c"># upload SARIF</span>
+<span class="k">jobs</span>:
+  <span class="k">scan</span>:
+    <span class="k">runs-on</span>: ubuntu-latest
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: <span class="s">actions/checkout@v4</span>
+      - <span class="k">uses</span>: <span class="s">elaz48/langdoctor@v1</span>
+        <span class="k">with</span>:
+          <span class="k">fail-on</span>: high
+      - <span class="k">uses</span>: <span class="s">github/codeql-action/upload-sarif@v3</span>
+        <span class="k">if</span>: always()
+        <span class="k">with</span>:
+          <span class="k">sarif_file</span>: langdoctor.sarif</pre>
+  </div>
+</section>
+
+<section id="faq" class="wrap">
+  <div class="eyebrow">FAQ</div>
+  <h2>The trust questions, answered.</h2>
+  <div class="faq">
+    <details open>
+      <summary>Does it send my code anywhere?</summary>
+      <p>No. langdoctor makes <b>zero network calls</b> during a scan. The CVE database ships inside the package and everything runs locally — same input, same output, always.</p>
+    </details>
+    <details>
+      <summary>Does it need an API key or an LLM?</summary>
+      <p>No. It's fully deterministic static analysis — no API key, no LLM calls, no telemetry. A full scan of a typical project runs in a couple of seconds.</p>
+    </details>
+    <details>
+      <summary>Is this a replacement for Semgrep or Snyk?</summary>
+      <p>No — it's the <b>framework-specific layer they miss</b>. langdoctor knows LangGraph checkpointers, Langflow defaults, and LangChain's deprecated APIs by name, and tells you the exact fix. Run it alongside your general SAST, not instead of it.</p>
+    </details>
+    <details>
+      <summary>How does it stay current with new CVEs?</summary>
+      <p>Advisories are data, not code: a new CVE is one entry in a JSON file plus a patch release. Follow <a href="https://pypi.org/project/langdoctor/">the package</a> and pin a version in CI for reproducible scans.</p>
+    </details>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap frow">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v6a5 5 0 0 0 10 0V3"/><path d="M9 14v2a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="11" r="2.5"/></svg>
+      lang<b>doctor</b>
+    </a>
+    <span class="spacer"></span>
+    <a href="https://langdoctor.dev">Built by Balázs</a>
+    <a href="https://github.com/elaz48/langdoctor">GitHub</a>
+    <a href="https://pypi.org/project/langdoctor/">PyPI</a>
+    <span class="small">MIT © 2026</span>
+  </div>
+</footer>
+
+<script>
+  // Copy buttons
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var text = btn.getAttribute('data-copy');
+      navigator.clipboard.writeText(text).then(function(){
+        var prev = btn.textContent; btn.textContent = 'Copied!';
+        setTimeout(function(){ btn.textContent = prev; }, 1400);
+      }).catch(function(){});
+    });
+  });
+
+  // Terminal reveal — opt in only when motion is allowed and IO is available.
+  // Otherwise the lines stay visible (their default state).
+  var scan = document.getElementById('scan');
+  var lines = Array.prototype.slice.call(scan.querySelectorAll('.ln'));
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce && 'IntersectionObserver' in window){
+    scan.classList.add('animate');
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting){
+          lines.forEach(function(l, i){ setTimeout(function(){ l.classList.add('show'); }, 150 * i); });
+          io.disconnect();
+        }
+      });
+    }, { threshold: 0.2 });
+    io.observe(scan);
+  }
+</script>
+</body>
+</html>
