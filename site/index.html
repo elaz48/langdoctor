@@ -97,7 +97,7 @@
   .term .barlabel{margin-left:12px; font-family:var(--mono); font-size:.82rem; color:var(--dim2)}
   .scan{padding:20px 22px; font-family:var(--mono); font-size:.95rem; line-height:1.7; min-height:330px}
   /* Lines are visible by default (no-JS / reduced-motion safe); JS opts into the reveal. */
-  .ln{transition:opacity .32s ease, transform .32s ease}
+  .ln{white-space:nowrap; transition:opacity .32s ease, transform .32s ease}
   .scan.animate .ln{opacity:0; transform:translateY(5px)}
   .scan.animate .ln.show{opacity:1; transform:none}
   .caret{display:inline-block; width:9px; height:1.05em; background:var(--green); vertical-align:-2px; margin-left:3px; animation:blink 1.05s steps(1) infinite}
@@ -155,6 +155,25 @@
   .code .head{display:flex; align-items:center; justify-content:space-between; padding:11px 16px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:.8rem; color:var(--dim2)}
   .code pre{padding:18px 20px; overflow-x:auto; font-family:var(--mono); font-size:.86rem; line-height:1.65; color:#cdd8e6}
   .code .k{color:#7dd3fc} .code .s{color:var(--green)} .code .c{color:var(--dim2)}
+
+  /* Horizontal-scroll affordance shared by every code + terminal block */
+  .scrollx{position:relative}
+  .scrollx .scroller{overflow-x:auto; scrollbar-width:thin; scrollbar-color:var(--line2) transparent}
+  .scrollx .scroller::-webkit-scrollbar{height:8px}
+  .scrollx .scroller::-webkit-scrollbar-thumb{background:var(--line2); border-radius:4px}
+  .scrollx .scroller::-webkit-scrollbar-track{background:transparent}
+  .fade{position:absolute; top:0; right:0; bottom:0; width:46px; pointer-events:none;
+    background:linear-gradient(90deg, transparent, var(--fade-to,var(--surface2)));
+    opacity:0; transition:opacity .2s}
+  .scrollx.can-scroll .fade{opacity:1}
+
+  @media(max-width:640px){
+    .code pre{font-size:.74rem; line-height:1.6}
+    .scan{font-size:.82rem}
+    .code .head{flex-direction:column; align-items:stretch; gap:8px; font-size:.72rem}
+    .code .head span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .code .head .copy{align-self:flex-end}
+  }
 
   /* faq */
   .faq{display:grid; gap:14px; margin-top:30px}
@@ -224,7 +243,7 @@
       <span class="tl" style="background:#ff5f56"></span><span class="tl" style="background:#ffbd2e"></span><span class="tl" style="background:#27c93f"></span>
       <span class="barlabel">langdoctor — scan</span>
     </div>
-    <div class="scan" id="scan">
+    <div class="scrollx"><div class="scan scroller" id="scan">
       <div class="ln"><span class="p">$</span> langdoctor<span class="caret"></span></div>
       <div class="ln">langdoctor&nbsp;&nbsp;<span class="c-crit">2 critical</span>&nbsp;&nbsp;<span class="c-high">2 high</span>&nbsp;&nbsp;<span class="muted">·</span>&nbsp;&nbsp;<span class="c-crit">2 KEV</span></div>
       <div class="ln muted">scanned ./my-agent</div>
@@ -248,7 +267,7 @@
       <div class="ln muted">&nbsp;&nbsp;app.py:9 · state is lost on restart, not shared across replicas</div>
       <div class="ln">&nbsp;</div>
       <div class="ln muted">advisories as of 2026-07-04</div>
-    </div>
+    </div><span class="fade" style="--fade-to:#0d1320"></span></div>
   </div>
 </section>
 
@@ -331,11 +350,11 @@ jobs:
         with:
           sarif_file: langdoctor.sarif'>Copy</button>
     </div>
-<pre><span class="k">name</span>: langdoctor
+<div class="scrollx"><pre class="scroller"><span class="k">name</span>: langdoctor
 <span class="k">on</span>: [push, pull_request]
 <span class="k">permissions</span>:
   <span class="k">contents</span>: read
-  <span class="k">security-events</span>: write   <span class="c"># upload SARIF</span>
+  <span class="k">security-events</span>: write
 <span class="k">jobs</span>:
   <span class="k">scan</span>:
     <span class="k">runs-on</span>: ubuntu-latest
@@ -347,7 +366,7 @@ jobs:
       - <span class="k">uses</span>: <span class="s">github/codeql-action/upload-sarif@v3</span>
         <span class="k">if</span>: always()
         <span class="k">with</span>:
-          <span class="k">sarif_file</span>: langdoctor.sarif</pre>
+          <span class="k">sarif_file</span>: langdoctor.sarif</pre><span class="fade"></span></div>
   </div>
 </section>
 
@@ -418,6 +437,19 @@ jobs:
     }, { threshold: 0.2 });
     io.observe(scan);
   }
+
+  // Scroll-fade affordance: show the right-edge fade only while more content
+  // remains to scroll, on every code/terminal block.
+  document.querySelectorAll('.scrollx').forEach(function(wrap){
+    var sc = wrap.querySelector('.scroller');
+    if (!sc) return;
+    function update(){
+      wrap.classList.toggle('can-scroll', sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1);
+    }
+    sc.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
 </script>
 </body>
 </html>
