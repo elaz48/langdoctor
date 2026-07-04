@@ -36,8 +36,10 @@ class Project:
     pyproject: dict | None = None
 
 
+# Directory names whose *contents* we skip. Matched against parent directories
+# only (never the filename) so a top-level `.env` FILE is still discovered.
 DEFAULT_EXCLUDES = {
-    ".git", ".venv", "venv", "env", ".env", "node_modules", "build", "dist",
+    ".git", ".venv", "venv", "virtualenv", "node_modules", "build", "dist",
     "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", ".tox", "site-packages",
 }
 
@@ -57,8 +59,10 @@ def _discover_files(root: Path, excludes: set[str], project: Project) -> None:
     if root.is_file():
         return
     for path in root.rglob("*"):
-        rel_parts = path.relative_to(root).parts
-        if any(part in excludes for part in rel_parts):
+        # Exclude by parent directory only, so files whose *name* matches an
+        # excluded dir name (e.g. a top-level `.env`) are still discovered.
+        parent_parts = path.relative_to(root).parts[:-1]
+        if any(part in excludes for part in parent_parts):
             continue
         if path.is_file():
             rel = path.relative_to(root).as_posix()
