@@ -16,9 +16,13 @@ import sys
 from . import __version__
 from .advisories import load_db
 from .checks import all_checks
-from .engine import exit_code_for, run_checks
+from .engine import exit_code_for, run_scan
 from .output.console import render
+from .output.json_out import render_json
+from .output.markdown import render_markdown
+from .output.sarif import render_sarif
 from .scanner import scan
+from .settings import load_settings
 
 
 def _parse_ignore(raw: str) -> list[str]:
@@ -35,10 +39,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("path", nargs="?", default=".", help="project directory to scan")
     parser.add_argument(
+        "--format",
+        choices=["console", "json", "sarif", "markdown"],
+        default="console",
+        help="output format (default: console)",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "medium", "low", "never"],
-        default="high",
-        help="exit 1 at or above this severity (default: high)",
+        default=None,
+        help="exit 1 at or above this severity (default: high, or [tool.langdoctor])",
     )
     parser.add_argument(
         "--strict", action="store_true", help="let heuristic findings affect the exit code"
@@ -69,16 +79,31 @@ def main(argv: list[str] | None = None) -> int:
         print(f"advisories as of {db.updated}")
         return 0
 
+    settings = load_settings(args.path)
+    fail_on = args.fail_on or settings.fail_on or "high"
+    ignore = _parse_ignore(args.ignore) + settings.ignore
+
     try:
-        project = scan(args.path)
+        project = scan(args.path, excludes=set(settings.exclude))
     except Exception as exc:  # scan error -> exit code 2
         print(f"langdoctor: scan error: {exc}", file=sys.stderr)
         return 2
 
     db = load_db()
-    findings = run_checks(project, ignore=_parse_ignore(args.ignore))
-    render(findings, project.root, db.updated, quiet=args.quiet)
-    return exit_code_for(findings, fail_on=args.fail_on, strict=args.strict)
+    result = run_scan(project, ignore=ignore)
+    _emit(result.findings, project.root, db.updated, args, result.suppressed)
+    return exit_code_for(result.findings, fail_on=fail_on, strict=args.strict)
+
+
+def _emit(findings, project_root, db_date, args, suppressed: int) -> None:
+    if args.format == "json":
+        print(render_json(findings, project_root, db_date, suppressed))
+    elif args.format == "sarif":
+        print(render_sarif(findings, project_root, db_date, suppressed))
+    elif args.format == "markdown":
+        print(render_markdown(findings, project_root, db_date, suppressed))
+    else:
+        render(findings, project_root, db_date, suppressed=suppressed, quiet=args.quiet)
 
 
 def _list_checks() -> int:

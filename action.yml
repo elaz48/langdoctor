@@ -1,0 +1,67 @@
+name: "langdoctor"
+description: "Scan your LangGraph/LangChain project for known CVEs, insecure configs, and production footguns — offline, no API key."
+author: "elaz48"
+branding:
+  icon: "activity"
+  color: "red"
+
+inputs:
+  path:
+    description: "Project directory to scan"
+    required: false
+    default: "."
+  fail-on:
+    description: "Fail the step at or above this severity (critical|high|medium|low|never)"
+    required: false
+    default: "high"
+  format:
+    description: "Output format (console|json|sarif|markdown)"
+    required: false
+    default: "sarif"
+  output:
+    description: "File to write the output to (upload this as SARIF to the Security tab)"
+    required: false
+    default: "langdoctor.sarif"
+  args:
+    description: "Extra command-line arguments passed to langdoctor"
+    required: false
+    default: ""
+
+outputs:
+  output-file:
+    description: "Path to the generated output file"
+    value: ${{ inputs.output }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install langdoctor
+      shell: bash
+      # Pin the installed version to the action's own ref for reproducible CI
+      # scans (a security tool must not change behavior under a floating
+      # "latest"). @v1.2.3 -> ==1.2.3 (exact); @v1 or @v1.2 -> latest matching
+      # 1.x / 1.2.x; a branch/SHA (dev) -> latest published.
+      run: |
+        set -euo pipefail
+        REF="${{ github.action_ref }}"
+        if [[ "$REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          SPEC="langdoctor==${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+        elif [[ "$REF" =~ ^v([0-9]+)\.([0-9]+)$ ]]; then
+          MAJ=${BASH_REMATCH[1]}; MIN=${BASH_REMATCH[2]}
+          SPEC="langdoctor>=${MAJ}.${MIN},<$((MAJ + 1)).0.0"
+        elif [[ "$REF" =~ ^v([0-9]+)$ ]]; then
+          MAJ=${BASH_REMATCH[1]}
+          SPEC="langdoctor>=${MAJ}.0.0,<$((MAJ + 1)).0.0"
+        else
+          SPEC="langdoctor"
+        fi
+        echo "action_ref=$REF -> installing '$SPEC'"
+        python -m pip install --upgrade "$SPEC"
+    - name: Run langdoctor
+      shell: bash
+      run: |
+        set -o pipefail
+        langdoctor "${{ inputs.path }}" \
+          --format "${{ inputs.format }}" \
+          --fail-on "${{ inputs.fail-on }}" \
+          ${{ inputs.args }} | tee "${{ inputs.output }}"

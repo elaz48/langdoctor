@@ -24,3 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     user input, heuristic).
   - Hygiene: LD501 (unpinned dependencies), LD502 (unpinned GitHub Actions).
   - Shared `analysis.py` (cached AST parsing + helpers); checks auto-register.
+- Phase 3 output & integration:
+  - Output formats: `--format console|json|sarif|markdown` (SARIF 2.1.0 wires
+    findings into the GitHub Security tab; markdown is PR/issue-ready). SARIF
+    `security-severity` uses the advisory's real CVSS score when present and the
+    severity-bucket threshold (9.0/7.0/4.0/1.0) for CVSS-less code checks.
+  - `[tool.langdoctor]` config in pyproject.toml (`fail-on`, `ignore`,
+    `exclude`); CLI flags take precedence, ignore lists union.
+  - Inline suppression: `# langdoctor: ignore` / `ignore=LD203,CVE-...` on a
+    finding's line, matched centrally by the engine (LD id / CVE / alias,
+    case-insensitive). Every output surfaces a `suppressed: N` count so nothing
+    is hidden silently.
+  - `action.yml` (composite GitHub Action) — pins the installed langdoctor to
+    the action's own ref (`@v1.2.3` → `==1.2.3`; the moving `@v1` tracks the
+    latest 1.x) for reproducible CI. `.pre-commit-hooks.yaml` for pre-commit.
+
+### Fixed
+- Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
+  top-level `.env` file and breaking LD402/LD403 detection.

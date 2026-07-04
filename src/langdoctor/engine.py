@@ -2,28 +2,50 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .checks import all_checks
 from .checks.versions import check_versions
 from .finding import SEVERITY_ORDER, Finding
+from .suppress import inline_suppressed
 
 FAIL_ON_CHOICES = ("critical", "high", "medium", "low", "never")
 
 
-def run_checks(project, ignore: list[str] | None = None) -> list[Finding]:
+@dataclass
+class ScanResult:
+    findings: list[Finding]
+    suppressed: int  # count dropped by --ignore / config / inline directives
+
+
+def run_scan(project, ignore: list[str] | None = None) -> ScanResult:
     ignore = list(ignore or ())
-    findings: list[Finding] = list(check_versions(project))
+    raw: list[Finding] = list(check_versions(project))
 
     for check in all_checks():
         try:
-            findings.extend(check.func(project) or [])
+            raw.extend(check.func(project) or [])
         except Exception:
             # A broken individual check must never abort the whole scan.
             continue
 
-    findings = [f for f in findings if not _suppressed(f, ignore)]
+    line_cache: dict = {}
+    kept: list[Finding] = []
+    suppressed = 0
+    for f in raw:
+        if _suppressed(f, ignore) or inline_suppressed(project, f, line_cache):
+            suppressed += 1
+        else:
+            kept.append(f)
+
     # KEV first, then severity desc, then stable by id.
-    findings.sort(key=lambda f: (not f.exploited_in_the_wild, -f.severity_rank, f.id))
-    return findings
+    kept.sort(key=lambda f: (not f.exploited_in_the_wild, -f.severity_rank, f.id))
+    return ScanResult(findings=kept, suppressed=suppressed)
+
+
+def run_checks(project, ignore: list[str] | None = None) -> list[Finding]:
+    """Convenience wrapper returning just the surviving findings."""
+    return run_scan(project, ignore).findings
 
 
 def _suppressed(finding: Finding, ignore: list[str]) -> bool:

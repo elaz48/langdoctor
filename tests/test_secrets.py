@@ -1,4 +1,5 @@
 from langdoctor.checks.secrets import env_not_gitignored, hardcoded_secrets
+from langdoctor.engine import run_checks
 from langdoctor.scanner import scan
 
 
@@ -25,9 +26,11 @@ def test_ld401_detects_aws_key(tmp_path):
 
 
 def test_ld401_respects_inline_ignore(tmp_path):
+    # Inline suppression is applied centrally by the engine, not the check itself.
     key = "sk-ant-" + "a1B2c3D4e5F6g7H8i9J0k1L2"
     project = _write(tmp_path, {"cfg.py": f'API_KEY = "{key}"  # langdoctor: ignore=LD401\n'})
-    assert hardcoded_secrets(project) == []
+    assert [f.id for f in hardcoded_secrets(project)] == ["LD401"]  # raw check still emits
+    assert run_checks(scan(tmp_path)) == []  # engine suppresses it
 
 
 def test_ld401_clean_no_secrets(tmp_path):

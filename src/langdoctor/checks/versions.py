@@ -47,6 +47,7 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
                         refs=adv.refs,
                         heuristic=heuristic,
                         exploited_in_the_wild=adv.exploited_in_the_wild,
+                        cvss_score=adv.cvss_score,
                     ),
                 )
             )

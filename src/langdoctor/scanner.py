@@ -80,22 +80,23 @@ def _collect_dependencies(root: Path, project: Project) -> None:
 
     pp = root / "pyproject.toml"
     if pp.is_file():
-        data = _read_toml(pp)
+        data = read_toml(pp)
         project.pyproject = data
         deps.extend(parse_pyproject_deps(data, "pyproject.toml"))
 
     uv = root / "uv.lock"
     if uv.is_file():
-        deps.extend(parse_lock(_read_toml(uv), "uv.lock"))
+        deps.extend(parse_lock(read_toml(uv), "uv.lock"))
 
     poetry = root / "poetry.lock"
     if poetry.is_file():
-        deps.extend(parse_lock(_read_toml(poetry), "poetry.lock"))
+        deps.extend(parse_lock(read_toml(poetry), "poetry.lock"))
 
     project.dependencies = deps
 
 
-def _read_toml(path: Path) -> dict:
+def read_toml(path: Path) -> dict:
+    """Parse a TOML file, returning {} on error (never raises)."""
     try:
         return tomllib.loads(path.read_text(encoding="utf-8", errors="replace"))
     except (tomllib.TOMLDecodeError, OSError):

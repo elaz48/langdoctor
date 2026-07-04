@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from langdoctor.cli import main
@@ -48,3 +49,46 @@ def test_cli_scan_error_returns_2(capsys):
     rc = main([str(FIX / "nope_does_not_exist")])
     assert rc == 2
     assert "scan error" in capsys.readouterr().err
+
+
+def test_cli_json_format(capsys):
+    rc = main([str(FIX / "vulnerable_project"), "--format", "json"])
+    assert rc == 1
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["tool"] == "langdoctor"
+    assert any(f["id"] == "LD106" for f in doc["findings"])
+
+
+def test_cli_sarif_format(capsys):
+    rc = main([str(FIX / "vulnerable_project"), "--format", "sarif"])
+    assert rc == 1
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["version"] == "2.1.0"
+
+
+def test_cli_markdown_format(capsys):
+    rc = main([str(FIX / "vulnerable_project"), "--format", "markdown"])
+    assert rc == 1
+    assert "| Severity | ID |" in capsys.readouterr().out
+
+
+def test_cli_config_fail_on_never(tmp_path, capsys):
+    (tmp_path / "requirements.txt").write_text("langflow==1.2.0\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.langdoctor]\nfail-on = "never"\n', encoding="utf-8"
+    )
+    rc = main([str(tmp_path), "--format", "json"])
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["summary"]["total"] > 0  # findings exist
+    assert rc == 0                        # ...but config says never fail
+
+
+def test_cli_config_ignore(tmp_path, capsys):
+    (tmp_path / "requirements.txt").write_text("langflow==1.2.0\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.langdoctor]\nignore = ["LD106", "LD111", "LD403"]\n', encoding="utf-8"
+    )
+    main([str(tmp_path), "--format", "json"])
+    doc = json.loads(capsys.readouterr().out)
+    ids = {f["id"] for f in doc["findings"]}
+    assert not ({"LD106", "LD111", "LD403"} & ids)

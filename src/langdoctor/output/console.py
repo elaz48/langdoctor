@@ -29,15 +29,18 @@ def _make_console() -> Console:
     return Console(no_color=bool(os.environ.get("NO_COLOR")))
 
 
-def render(findings, project_root, db_date, console: Console | None = None, quiet: bool = False):
+def render(
+    findings, project_root, db_date, suppressed: int = 0,
+    console: Console | None = None, quiet: bool = False,
+):
     console = console or _make_console()
 
     if not findings:
-        render_clean(console, db_date)
+        render_clean(console, db_date, suppressed)
         return
 
     if not quiet:
-        _render_summary(console, findings, project_root)
+        _render_summary(console, findings, project_root, suppressed)
 
     for severity in SEV_ORDER:
         for finding in [f for f in findings if f.severity == severity]:
@@ -47,7 +50,7 @@ def render(findings, project_root, db_date, console: Console | None = None, quie
         console.print(Text(f"advisories as of {db_date}", style="dim"))
 
 
-def _render_summary(console: Console, findings, project_root) -> None:
+def _render_summary(console: Console, findings, project_root, suppressed: int) -> None:
     counts = {s: 0 for s in SEV_ORDER}
     for f in findings:
         counts[f.severity] = counts.get(f.severity, 0) + 1
@@ -63,6 +66,8 @@ def _render_summary(console: Console, findings, project_root) -> None:
     kev = sum(1 for f in findings if f.exploited_in_the_wild)
     if kev:
         header.append(f"   {kev} 🔴 KEV", style="bold red")
+    if suppressed:
+        header.append(f"   {suppressed} suppressed", style="dim")
     console.print(header)
     console.print(Text(f"scanned {project_root}", style="dim"))
     console.print()
@@ -102,11 +107,14 @@ def _render_finding(console: Console, f: Finding) -> None:
     console.print()
 
 
-def render_clean(console: Console, db_date: str) -> None:
+def render_clean(console: Console, db_date: str, suppressed: int = 0) -> None:
+    clear_line = "🩺  All clear — no findings."
+    if suppressed:
+        clear_line += f"  ({suppressed} suppressed)"
     console.print(
         Panel.fit(
             Text.assemble(
-                ("🩺  All clear — no findings.\n", "bold green"),
+                (clear_line + "\n", "bold green"),
                 ("Your LangGraph / LangChain stack looks production-ready.\n\n", ""),
                 ("Keep it that way — run langdoctor in CI:\n", "dim"),
                 ("  - uses: elaz48/langdoctor@v1", "cyan"),

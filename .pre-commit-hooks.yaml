@@ -1,0 +1,7 @@
+- id: langdoctor
+  name: langdoctor
+  description: "Scan the project for known LangGraph/LangChain CVEs, insecure configs, and production footguns."
+  entry: langdoctor
+  language: python
+  pass_filenames: false
+  always_run: true

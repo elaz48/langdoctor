@@ -27,8 +27,7 @@ def hardcoded_secrets(project) -> list[Finding]:
     findings = []
     for sf in load_sources(project):
         for lineno, line in enumerate(sf.lines, start=1):
-            if "langdoctor: ignore" in line:
-                continue
+            # Inline `# langdoctor: ignore` is applied centrally by the engine.
             for label, pattern in _SECRET_PATTERNS:
                 if pattern.search(line):
                     findings.append(Finding(

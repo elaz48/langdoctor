@@ -27,6 +27,7 @@ class Finding:
     refs: tuple[str, ...] = ()
     heuristic: bool = False
     exploited_in_the_wild: bool = False
+    cvss_score: float | None = None
 
     @property
     def severity_rank(self) -> int:
