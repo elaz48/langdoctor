@@ -43,7 +43,7 @@ def test_bare_inline_ignore_suppresses_all_on_line(tmp_path):
 
 
 def test_inline_ignore_in_source_line(tmp_path):
-    key = "sk-ant-" + "a1B2c3D4e5F6g7H8i9J0k1L2"
+    key = "sk-ant-EXAMPLE-NOT-A-REAL-KEY-000000"
     (tmp_path / "cfg.py").write_text(
         f'API_KEY = "{key}"  # langdoctor: ignore=LD401\n', encoding="utf-8"
     )

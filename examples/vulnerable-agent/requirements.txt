@@ -1,0 +1,5 @@
+langgraph==1.0.5
+langgraph-checkpoint-sqlite==2.0.5
+langchain-core==1.2.0
+langflow==1.2.0
+langchain-openai

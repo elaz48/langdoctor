@@ -12,7 +12,7 @@ def _write(tmp_path, files):
 
 
 def test_ld401_detects_anthropic_key(tmp_path):
-    key = "sk-ant-" + "a1B2c3D4e5F6g7H8i9J0k1L2"
+    key = "sk-ant-EXAMPLE-NOT-A-REAL-KEY-000000"
     project = _write(tmp_path, {"cfg.py": f'API_KEY = "{key}"\n'})
     findings = hardcoded_secrets(project)
     assert [f.id for f in findings] == ["LD401"]
@@ -27,7 +27,7 @@ def test_ld401_detects_aws_key(tmp_path):
 
 def test_ld401_respects_inline_ignore(tmp_path):
     # Inline suppression is applied centrally by the engine, not the check itself.
-    key = "sk-ant-" + "a1B2c3D4e5F6g7H8i9J0k1L2"
+    key = "sk-ant-EXAMPLE-NOT-A-REAL-KEY-000000"
     project = _write(tmp_path, {"cfg.py": f'API_KEY = "{key}"  # langdoctor: ignore=LD401\n'})
     assert [f.id for f in hardcoded_secrets(project)] == ["LD401"]  # raw check still emits
     assert run_checks(scan(tmp_path)) == []  # engine suppresses it
