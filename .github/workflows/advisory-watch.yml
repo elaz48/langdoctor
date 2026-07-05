@@ -1,7 +1,9 @@
 name: Advisory watch
 
-# Weekly check: does OSV know about any advisory for our packages that
-# advisories.json doesn't cover yet? If so, open one tracking issue.
+# Weekly delta check: does OSV know about any advisory for our packages that
+# advisories.json doesn't cover and we haven't already tracked? Out-of-scope
+# advisories (scripts/watch-ignore.json) are never alerted; everything else is
+# tracked in .watch-state.json so it alerts once, not every week.
 
 on:
   schedule:
@@ -9,8 +11,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
+  contents: write   # commit the updated .watch-state.json
+  issues: write     # open / comment the tracking issue
 
 jobs:
   watch:
@@ -26,21 +28,35 @@ jobs:
         id: watch
         run: python scripts/advisory_watch.py   # always exits 0
 
-      - name: Open an issue for uncovered advisories
-        if: steps.watch.outputs.uncovered_count != '' && steps.watch.outputs.uncovered_count != '0'
+      - name: Report newly-uncovered advisories
+        if: steps.watch.outputs.new_count != '' && steps.watch.outputs.new_count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # One issue per run: skip if an advisory-watch issue is already open.
-          existing=$(gh issue list --label advisory-watch --state open --json number --jq 'length')
-          if [ "$existing" != "0" ]; then
-            echo "An open advisory-watch issue already exists (#$existing); skipping."
-            exit 0
+          # Reuse the open tracking issue if there is one; otherwise open a new one.
+          existing=$(gh issue list --label advisory-watch --state open --json number --jq '.[0].number // ""')
+          if [ -n "$existing" ]; then
+            echo "Appending to open issue #$existing"
+            gh issue comment "$existing" --body-file advisory-report.md
+          else
+            gh label create advisory-watch --color FF5F56 \
+              --description "Uncovered LangChain/LangGraph/Langflow advisories" 2>/dev/null || true
+            gh issue create \
+              --title "Advisory watch: new uncovered advisories ($(date -u +%F))" \
+              --label advisory-watch \
+              --body-file advisory-report.md
           fi
-          gh label create advisory-watch --color FF5F56 \
-            --description "Uncovered LangChain/LangGraph/Langflow advisories" 2>/dev/null || true
-          gh issue create \
-            --title "Advisory watch: uncovered advisories ($(date -u +%F))" \
-            --label advisory-watch \
-            --body-file advisory-report.md
+
+      - name: Commit updated watch state
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .watch-state.json; then
+            echo "watch state unchanged"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .watch-state.json
+            git commit -m "chore: update advisory watch state [skip ci]"
+            git push
+          fi

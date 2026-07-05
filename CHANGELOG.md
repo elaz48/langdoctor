@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Weekly advisory watcher (`.github/workflows/advisory-watch.yml` +
   `scripts/advisory_watch.py`): queries OSV.dev for the covered packages, diffs
-  against the IDs/aliases in `advisories.json`, and opens a single tracking issue
-  listing anything not yet covered (skips if one is already open). Never fails
-  the workflow on API hiccups. Pure comparison logic is unit-tested with fixtures.
+  against the IDs/aliases in `advisories.json`, and reports advisories not yet
+  covered on a single tracking issue. Never fails the workflow on API hiccups
+  (partial data → skip, exit 0). Pure comparison logic is unit-tested.
+  - `scripts/watch-ignore.json`: advisories that are intentionally out of scope
+    (pre-2025 historical langchain CVEs) and never alerted.
+  - Delta reporting via a committed `.watch-state.json`: an advisory alerts once,
+    not every week; deferred-but-planned items (the Langflow long tail) are
+    tracked without re-alerting.
 
 ## [0.1.0] - 2026-07-04
 

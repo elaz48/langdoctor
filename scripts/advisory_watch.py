@@ -18,8 +18,13 @@ import json
 import os
 import sys
 import urllib.request
+from pathlib import Path
 
 OSV_URL = "https://api.osv.dev/v1/query"
+
+_HERE = Path(__file__).resolve().parent
+IGNORE_PATH = _HERE / "watch-ignore.json"          # out-of-scope advisories (never alerted)
+STATE_PATH = _HERE.parent / ".watch-state.json"    # committed delta state (known-uncovered)
 
 # Packages langdoctor ships advisories for (plus close ecosystem siblings).
 PACKAGES = [
@@ -100,6 +105,40 @@ def uncovered_advisories(osv_by_package: dict, covered: set[str]) -> list[dict]:
     return out
 
 
+def load_ignore(path) -> set[str]:
+    """Out-of-scope advisory identifiers that are never alerted (wontfix)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {_norm(k) for k in (data.get("ignore") or {})}
+
+
+def load_state(path) -> set[str]:
+    """Identifiers already known-uncovered as of the last run (delta baseline)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {_norm(x) for x in (data.get("known_uncovered") or [])}
+
+
+def save_state(path, ids) -> None:
+    Path(path).write_text(
+        json.dumps({"known_uncovered": sorted(ids)}, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def advisory_ids(uncovered: list[dict]) -> list[str]:
+    return sorted({u["id"] for u in uncovered if u["id"]})
+
+
+def new_advisories(uncovered: list[dict], known: set[str]) -> list[dict]:
+    """Uncovered advisories whose id was not already known last run (the delta)."""
+    known_upper = {_norm(k) for k in known}
+    return [u for u in uncovered if u["id"] and _norm(u["id"]) not in known_upper]
+
+
 def render_issue(uncovered: list[dict]) -> str:
     lines = [
         "The advisory watcher found OSV advisories for covered packages that are "
@@ -149,7 +188,9 @@ def _set_output(name: str, value: str) -> None:
 def main() -> int:
     from langdoctor.advisories import load_db
 
-    covered = covered_identifiers(load_db())
+    # Covered = shipped advisories + explicitly out-of-scope (ignored) identifiers.
+    covered = covered_identifiers(load_db()) | load_ignore(IGNORE_PATH)
+    known = load_state(STATE_PATH)
 
     osv_by_package: dict = {}
     errors = 0
@@ -160,15 +201,26 @@ def main() -> int:
             continue
         osv_by_package[package] = result
 
+    # On partial data (any query failed) do NOT report or rewrite state — a
+    # transient OSV outage must never drop known advisories or emit false alerts.
+    if errors:
+        print(
+            f"::warning::{errors}/{len(PACKAGES)} OSV queries failed; "
+            "skipping report and state update this run"
+        )
+        _set_output("new_count", "0")
+        return 0
+
     uncovered = uncovered_advisories(osv_by_package, covered)
-    print(
-        f"checked {len(osv_by_package)}/{len(PACKAGES)} packages "
-        f"({errors} query errors); {len(uncovered)} uncovered advisories"
-    )
+    new = new_advisories(uncovered, known)
+    print(f"{len(uncovered)} uncovered advisories; {len(new)} new since last run")
 
     with open("advisory-report.md", "w", encoding="utf-8") as fh:
-        fh.write(render_issue(uncovered) if uncovered else "")
-    _set_output("uncovered_count", str(len(uncovered)))
+        fh.write(render_issue(new) if new else "")
+    # State mirrors the current uncovered set: newly-seen ones stop re-alerting,
+    # and anything we later cover drops out naturally.
+    save_state(STATE_PATH, advisory_ids(uncovered))
+    _set_output("new_count", str(len(new)))
     return 0
 
 

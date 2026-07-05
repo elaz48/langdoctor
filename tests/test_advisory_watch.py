@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -103,3 +104,57 @@ def test_covered_identifiers_from_real_db():
     assert "CVE-2025-3248" in covered
     assert "GHSA-RVQX-WPFH-MFX7" in covered
     assert "LD106" in covered
+
+
+# --- ignore list -----------------------------------------------------------
+
+def test_load_ignore_normalizes(tmp_path):
+    p = tmp_path / "ig.json"
+    p.write_text(json.dumps({"ignore": {"cve-2023-1": "x", "GHSA-yy": "y"}}), encoding="utf-8")
+    assert aw.load_ignore(p) == {"CVE-2023-1", "GHSA-YY"}
+
+
+def test_load_ignore_missing_file_is_empty(tmp_path):
+    assert aw.load_ignore(tmp_path / "nope.json") == set()
+
+
+def test_ignoring_a_cve_suppresses_its_ghsa_and_pysec_records():
+    # OSV returns the same CVE as separate GHSA + PYSEC records; ignoring the CVE
+    # must drop both, since matching is by any identifier.
+    ignore = {"CVE-2023-99999"}
+    osv = {"langchain": [
+        {"id": "GHSA-aaa", "aliases": ["CVE-2023-99999", "PYSEC-2023-1"]},
+        {"id": "PYSEC-2023-1", "aliases": ["CVE-2023-99999", "GHSA-aaa"]},
+        {"id": "GHSA-bbb", "aliases": ["CVE-2026-11111"]},  # unrelated, stays
+    ]}
+    result = aw.uncovered_advisories(osv, COVERED | ignore)
+    assert [r["id"] for r in result] == ["GHSA-bbb"]
+
+
+def test_real_ignore_file_lists_historical_langchain():
+    ignore = aw.load_ignore(aw.IGNORE_PATH)
+    assert "CVE-2023-29374" in ignore   # a pre-2025 langchain code-injection CVE
+    assert len(ignore) >= 20
+
+
+# --- delta state -----------------------------------------------------------
+
+def test_new_advisories_filters_known_case_insensitively():
+    uncovered = [{"id": "CVE-A"}, {"id": "CVE-B"}, {"id": "GHSA-C"}]
+    known = {"CVE-A", "ghsa-c"}
+    assert [u["id"] for u in aw.new_advisories(uncovered, known)] == ["CVE-B"]
+
+
+def test_advisory_ids_sorted_and_deduped():
+    uncovered = [{"id": "CVE-B"}, {"id": "CVE-A"}, {"id": "CVE-A"}, {"id": None}]
+    assert aw.advisory_ids(uncovered) == ["CVE-A", "CVE-B"]
+
+
+def test_state_roundtrip(tmp_path):
+    p = tmp_path / ".watch-state.json"
+    aw.save_state(p, {"CVE-B", "CVE-A"})
+    assert aw.load_state(p) == {"CVE-A", "CVE-B"}
+
+
+def test_load_state_missing_file_is_empty(tmp_path):
+    assert aw.load_state(tmp_path / "none.json") == set()

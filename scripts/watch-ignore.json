@@ -1,0 +1,27 @@
+{
+  "note": "Advisories intentionally OUT OF SCOPE for langdoctor -- never alerted by the advisory watcher. Criteria: pre-2025 (2023-2024) historical langchain / langchain-core CVEs in code paths langdoctor does not model (old chains, agents, SQL/PAL exec, community tools). NOT for deferred-but-planned coverage such as the Langflow long tail -- that is tracked via .watch-state.json instead. Matching is by any identifier, so a CVE here also suppresses its paired GHSA/PYSEC records.",
+  "ignore": {
+    "CVE-2023-29374": "pre-2025 langchain: LangChain vulnerable to code injection (out of scope)",
+    "CVE-2023-32785": "pre-2025 langchain: Langchain SQL Injection vulnerability (out of scope)",
+    "CVE-2023-32786": "pre-2025 langchain: Langchain Server-Side Request Forgery vulnerability (out of scope)",
+    "CVE-2023-34540": "pre-2025 langchain: Langchain OS Command Injection vulnerability (out of scope)",
+    "CVE-2023-34541": "pre-2025 langchain: Langchain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-36095": "pre-2025 langchain: langchain Code Injection vulnerability (out of scope)",
+    "CVE-2023-36188": "pre-2025 langchain: langchain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-36189": "pre-2025 langchain: langchain SQL Injection vulnerability (out of scope)",
+    "CVE-2023-36258": "pre-2025 langchain: langchain arbitrary code execution vulnerability (out of scope)",
+    "CVE-2023-36281": "pre-2025 langchain: langchain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-38860": "pre-2025 langchain: LangChain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-38896": "pre-2025 langchain: LangChain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-39631": "pre-2025 langchain: Langchain vulnerable to arbitrary code execution via the evaluat (out of scope)",
+    "CVE-2023-39659": "pre-2025 langchain: LangChain vulnerable to arbitrary code execution (out of scope)",
+    "CVE-2023-46229": "pre-2025 langchain: LangChain Server Side Request Forgery vulnerability (out of scope)",
+    "CVE-2024-0243": "pre-2025 langchain: langchain Server-Side Request Forgery vulnerability (out of scope)",
+    "CVE-2024-10940": "pre-2025 langchain-core: langchain-core allows unauthorized users to read arbitrary files (out of scope)",
+    "CVE-2024-1455": "pre-2025 langchain-core: LangChain's XMLOutputParser vulnerable to XML Entity Expansion (out of scope)",
+    "CVE-2024-28088": "pre-2025 langchain-core: LangChain directory traversal vulnerability (out of scope)",
+    "CVE-2024-2965": "pre-2025 langchain: Denial of service in langchain-community (out of scope)",
+    "CVE-2024-3571": "pre-2025 langchain: langchain vulnerable to path traversal (out of scope)",
+    "CVE-2024-8309": "pre-2025 langchain: Langchain SQL Injection vulnerability (out of scope)"
+  }
+}

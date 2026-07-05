@@ -76,6 +76,14 @@ advisory: cross-check ≥2 sources (OSV + NVD + GitHub Security Advisories /
 vendor), record every identifier in `aliases`, and pull CVSS base scores from
 NVD (do not hand-compute). Numbers are "verified-as-of a date," never permanent.
 
+## Advisory watcher
+
+`scripts/advisory_watch.py` (weekly workflow) diffs OSV against `advisories.json`
+and alerts on the delta. `scripts/watch-ignore.json` lists advisories that are
+**intentionally out of scope** (pre-2025 historical langchain/langchain-core CVEs
+and code paths we don't model) — do NOT "clean it up" or add planned-coverage
+items (e.g. the Langflow long tail) to it; those belong in `.watch-state.json`.
+
 ## Commands
 
 Python 3.10+ (ecosystem floor, verified). Cross-platform: `pathlib` everywhere,
