@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Weekly advisory watcher (`.github/workflows/advisory-watch.yml` +
+  `scripts/advisory_watch.py`): queries OSV.dev for the covered packages, diffs
+  against the IDs/aliases in `advisories.json`, and opens a single tracking issue
+  listing anything not yet covered (skips if one is already open). Never fails
+  the workflow on API hiccups. Pure comparison logic is unit-tested with fixtures.
+
 ## [0.1.0] - 2026-07-04
 
 Initial release.

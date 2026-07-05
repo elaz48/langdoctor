@@ -1,0 +1,46 @@
+name: Advisory watch
+
+# Weekly check: does OSV know about any advisory for our packages that
+# advisories.json doesn't cover yet? If so, open one tracking issue.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e .
+
+      - name: Query OSV and diff against advisories.json
+        id: watch
+        run: python scripts/advisory_watch.py   # always exits 0
+
+      - name: Open an issue for uncovered advisories
+        if: steps.watch.outputs.uncovered_count != '' && steps.watch.outputs.uncovered_count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # One issue per run: skip if an advisory-watch issue is already open.
+          existing=$(gh issue list --label advisory-watch --state open --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "An open advisory-watch issue already exists (#$existing); skipping."
+            exit 0
+          fi
+          gh label create advisory-watch --color FF5F56 \
+            --description "Uncovered LangChain/LangGraph/Langflow advisories" 2>/dev/null || true
+          gh issue create \
+            --title "Advisory watch: uncovered advisories ($(date -u +%F))" \
+            --label advisory-watch \
+            --body-file advisory-report.md

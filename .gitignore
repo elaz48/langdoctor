@@ -13,3 +13,6 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# advisory watcher output (generated in CI)
+advisory-report.md
