@@ -22,6 +22,7 @@
     "CVE-2024-28088": "pre-2025 langchain-core: LangChain directory traversal vulnerability (out of scope)",
     "CVE-2024-2965": "pre-2025 langchain: Denial of service in langchain-community (out of scope)",
     "CVE-2024-3571": "pre-2025 langchain: langchain vulnerable to path traversal (out of scope)",
+    "CVE-2024-5998": "pre-2025 langchain: LangChain pickle deserialization of untrusted data (out of scope)",
     "CVE-2024-8309": "pre-2025 langchain: Langchain SQL Injection vulnerability (out of scope)"
   }
 }

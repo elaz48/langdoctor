@@ -17,8 +17,10 @@ def test_vulnerable_project_triggers_expected_advisories():
     assert {"LD101", "LD109", "LD110"} <= got
     # langflow 1.2.0 -> LD106 (KEV), LD111 (KEV)
     assert {"LD106", "LD111"} <= got
-    # langchain-core 1.2.0 -> LD104, LD105
-    assert {"LD104", "LD105"} <= got
+    # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113
+    assert {"LD104", "LD105", "LD113"} <= got
+    # langchain 1.3.0 -> LD114
+    assert "LD114" in got
     # langgraph 1.0.5 -> LD102
     assert "LD102" in got
 
@@ -37,9 +39,27 @@ def test_findings_carry_derived_severity_and_fix():
 
 
 def test_dual_line_fix_targets_matching_line():
-    # langchain-core 1.2.0 is on the 1.x line -> recommend 1.2.5, not 0.3.81
+    # langchain-core 1.0.5 is on the 1.x line -> recommend 1.2.5, not 0.3.81
     findings = {f.id: f for f in check_versions(scan(FIX / "vulnerable_project"))}
     assert findings["LD105"].fix == 'pip install "langchain-core>=1.2.5"'
+    # LD113 is also dual-line; the 1.x line is fixed at 1.0.7
+    assert findings["LD113"].fix == 'pip install "langchain-core>=1.0.7"'
+
+
+def test_ld112_only_affects_the_0x_line(tmp_path):
+    # CVE-2026-48776: langgraph SDK URL construction, fixed 0.3.15 (0.x only).
+    (tmp_path / "requirements.txt").write_text("langgraph==0.3.14\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert "LD112" in findings
+    assert findings["LD112"].severity == "medium"  # CNA 4.2, not the NVD-secondary 9.1
+    assert findings["LD112"].fix == 'pip install "langgraph>=0.3.15"'
+    assert findings["LD112"].heuristic is False
+
+
+def test_ld112_not_flagged_on_1x(tmp_path):
+    # 1.x is past the 0.3.15 fix, so a modern langgraph pin must not trip LD112.
+    (tmp_path / "requirements.txt").write_text("langgraph==1.0.5\n", encoding="utf-8")
+    assert "LD112" not in _ids(check_versions(scan(tmp_path)))
 
 
 def test_aggregate_suppressed_when_specific_langflow_finding_fires():

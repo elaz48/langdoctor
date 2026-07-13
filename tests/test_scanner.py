@@ -12,7 +12,8 @@ def test_scan_parses_exact_versions():
     by = {d.name.lower(): d for d in project.dependencies}
     assert by["langflow"].version == "1.2.0"
     assert by["langgraph-checkpoint-sqlite"].version == "2.0.5"
-    assert by["langchain-core"].version == "1.2.0"
+    assert by["langchain-core"].version == "1.0.5"
+    assert by["langchain"].version == "1.3.0"
 
 
 def test_scan_discovers_files():

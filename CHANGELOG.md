@@ -6,7 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-13
+
+Advisory data update (LD112–LD114), surfaced by the new weekly watcher.
+
 ### Added
+- **LD112** — CVE-2026-48776: unsafe URL path construction in the LangGraph SDK
+  (`langgraph < 0.3.15`, 0.x line only). Medium (CNA 4.2); the detail notes the
+  inconsistent NVD-secondary 9.1.
+- **LD113** — CVE-2025-65106: template injection via attribute access in prompt
+  templates (`langchain-core`, dual-line fix 0.3.80 / 1.0.7). High (CVSS 4.0, 8.3).
+- **LD114** — CVE-2026-55443: path traversal / sandbox escape in file-search
+  middleware and loaders (`langchain < 1.3.9`). Medium (5.1). First advisory on
+  the top-level `langchain` package.
 - Weekly advisory watcher (`.github/workflows/advisory-watch.yml` +
   `scripts/advisory_watch.py`): queries OSV.dev for the covered packages, diffs
   against the IDs/aliases in `advisories.json`, and reports advisories not yet
@@ -17,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Delta reporting via a committed `.watch-state.json`: an advisory alerts once,
     not every week; deferred-but-planned items (the Langflow long tail) are
     tracked without re-alerting.
+
+### Changed
+- `scripts/watch-ignore.json`: added CVE-2024-5998 (pre-2025 LangChain pickle
+  deserialization) as out of scope; re-seeded `.watch-state.json` so the newly
+  covered (LD112–114) and ignored advisories stop alerting.
 
 ## [0.1.0] - 2026-07-04
 
@@ -48,5 +65,6 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/elaz48/langdoctor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/elaz48/langdoctor/releases/tag/v0.1.0
