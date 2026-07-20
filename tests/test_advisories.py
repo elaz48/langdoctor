@@ -10,9 +10,10 @@ from langdoctor.advisories import (
 def test_db_loads_schema_v2():
     db = load_db()
     assert db.schema_version == 2
-    assert db.updated == "2026-07-13"
+    assert db.updated == "2026-07-20"
     ids = {a.id for a in db.advisories}
-    assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114", "LD150"} <= ids
+    assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
+            "LD115", "LD116", "LD117", "LD150"} <= ids
 
 
 def test_normalize_name():
@@ -80,6 +81,16 @@ def test_dual_line_ranges_ld113():
     # 0.3.x line: fixed at 0.3.80
     assert version_affected("0.3.79", ld113.ranges)
     assert not version_affected("0.3.80", ld113.ranges)
+
+
+def test_dual_line_ranges_ld117():
+    ld117 = {a.id: a for a in load_db().advisories}["LD117"]
+    # 1.x line: fixed at 1.3.3
+    assert version_affected("1.3.2", ld117.ranges)
+    assert not version_affected("1.3.3", ld117.ranges)
+    # 0.3.x line: fixed at 0.3.85
+    assert version_affected("0.3.84", ld117.ranges)
+    assert not version_affected("0.3.85", ld117.ranges)
 
 
 def test_every_advisory_has_a_reference():

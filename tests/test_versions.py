@@ -17,8 +17,8 @@ def test_vulnerable_project_triggers_expected_advisories():
     assert {"LD101", "LD109", "LD110"} <= got
     # langflow 1.2.0 -> LD106 (KEV), LD111 (KEV)
     assert {"LD106", "LD111"} <= got
-    # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113
-    assert {"LD104", "LD105", "LD113"} <= got
+    # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113, LD115, LD116, LD117
+    assert {"LD104", "LD105", "LD113", "LD115", "LD116", "LD117"} <= got
     # langchain 1.3.0 -> LD114
     assert "LD114" in got
     # langgraph 1.0.5 -> LD102
@@ -44,6 +44,11 @@ def test_dual_line_fix_targets_matching_line():
     assert findings["LD105"].fix == 'pip install "langchain-core>=1.2.5"'
     # LD113 is also dual-line; the 1.x line is fixed at 1.0.7
     assert findings["LD113"].fix == 'pip install "langchain-core>=1.0.7"'
+    # v0.1.2 langchain-core advisories, all resolved on the 1.x line for 1.0.5
+    assert findings["LD115"].fix == 'pip install "langchain-core>=1.2.11"'
+    assert findings["LD116"].fix == 'pip install "langchain-core>=1.2.28"'
+    assert findings["LD117"].fix == 'pip install "langchain-core>=1.3.3"'
+    assert findings["LD117"].severity == "high"  # CVSS 8.2, the notable one
 
 
 def test_ld112_only_affects_the_0x_line(tmp_path):

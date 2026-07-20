@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-20
+
+Advisory data update (LD115–LD117), surfaced by the weekly watcher.
+
+### Added
+- **LD117** — CVE-2026-44843: unsafe deserialization of attacker-controlled
+  objects via overly broad `load()` allowlists in `langchain-core` (dual-line fix
+  0.3.85 / 1.3.3). High (CVSS 8.2).
+- **LD116** — CVE-2026-40087: incomplete f-string validation in prompt templates
+  (`langchain-core`, dual-line fix 0.3.84 / 1.2.28). Medium (5.3); same family
+  as LD113.
+- **LD115** — CVE-2026-26013: SSRF via `image_url` token counting in
+  `ChatOpenAI.get_num_tokens_from_messages` (`langchain-core < 1.2.11`). Low (3.7).
+
+### Changed
+- `scripts/watch-ignore.json`: added CVE-2026-45134 (LangSmith SDK prompt-pull
+  deserialization, cross-listed by OSV to `langchain` but out of scope) and
+  broadened the ignore criteria to cover recent third-party-SDK advisories that
+  only affect a line langdoctor does not flag. Re-seeded `.watch-state.json`.
+
 ## [0.1.1] - 2026-07-13
 
 Advisory data update (LD112–LD114), surfaced by the new weekly watcher.
@@ -65,6 +85,7 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/elaz48/langdoctor/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/elaz48/langdoctor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/elaz48/langdoctor/releases/tag/v0.1.0
