@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated": "2026-07-20",
+  "updated": "2026-08-11",
   "severity_buckets": { "critical": 9.0, "high": 7.0, "medium": 4.0, "low": 0.1 },
   "advisories": [
     {
@@ -269,6 +269,36 @@
       "title": "Unsafe deserialization via overly broad load() allowlists",
       "detail": "langchain-core's load()/loads() allowlists are too broad, so a crafted serialized payload can reconstruct attacker-controlled objects during deserialization (high-confidentiality impact, can chain further). Fixed on both the 0.3.x and 1.x lines.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-44843", "https://github.com/advisories/GHSA-pjwx-r37v-7724"]
+    },
+    {
+      "id": "LD118",
+      "package": "langgraph-checkpoint-sqlite",
+      "cve": "CVE-2026-71433",
+      "aliases": ["GHSA-47pj-3jcm-6whg", "PYSEC-2026-3635", "PYSEC-2026-3636"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "3.1.1" }],
+      "fixed_in": "3.1.1",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
+      "severity_override": null,
+      "exploited_in_the_wild": false,
+      "title": "Namespace prefix matching crosses segment boundaries in the SQLite store",
+      "detail": "Hierarchical namespaces are flattened to a dot-joined string and scoped reads match it with LIKE '<path>%'. Because LIKE ignores the '.' separator, a scoped search or list_namespaces also returns sibling namespaces sharing leading characters (e.g. namespace ('memories','alice') also matches 'alice_admin'), leaking cross-tenant state. Same CVE as LD119, which covers the Postgres store.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-71433", "https://github.com/advisories/GHSA-47pj-3jcm-6whg"]
+    },
+    {
+      "id": "LD119",
+      "package": "langgraph-checkpoint-postgres",
+      "cve": "CVE-2026-71433",
+      "aliases": ["GHSA-47pj-3jcm-6whg", "PYSEC-2026-3635", "PYSEC-2026-3636"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "3.1.1" }],
+      "fixed_in": "3.1.1",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
+      "severity_override": null,
+      "exploited_in_the_wild": false,
+      "title": "Namespace prefix matching crosses segment boundaries in the Postgres store",
+      "detail": "Same root cause as LD118 (one CVE, two packages): namespaces are stored dot-joined and scoped reads use LIKE '<path>%', so a scoped search or list_namespaces also returns sibling namespaces sharing leading characters, leaking cross-tenant state. Tracked separately so the fix line names the package actually installed.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-71433", "https://github.com/advisories/GHSA-47pj-3jcm-6whg"]
     },
     {
       "id": "LD150",

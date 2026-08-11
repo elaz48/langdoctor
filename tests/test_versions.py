@@ -13,8 +13,10 @@ def _ids(findings):
 def test_vulnerable_project_triggers_expected_advisories():
     findings = check_versions(scan(FIX / "vulnerable_project"))
     got = _ids(findings)
-    # langgraph-checkpoint-sqlite 2.0.5 -> LD101, LD109, LD110
-    assert {"LD101", "LD109", "LD110"} <= got
+    # langgraph-checkpoint-sqlite 2.0.5 -> LD101, LD109, LD110, LD118
+    assert {"LD101", "LD109", "LD110", "LD118"} <= got
+    # langgraph-checkpoint-postgres 3.1.0 -> LD119 (same CVE as LD118, other package)
+    assert "LD119" in got
     # langflow 1.2.0 -> LD106 (KEV), LD111 (KEV)
     assert {"LD106", "LD111"} <= got
     # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113, LD115, LD116, LD117
@@ -27,6 +29,21 @@ def test_vulnerable_project_triggers_expected_advisories():
 
 def test_clean_project_has_no_findings():
     assert check_versions(scan(FIX / "clean_project")) == []
+
+
+def test_one_cve_two_packages_reports_per_package_fix():
+    # CVE-2026-71433 affects both stores; each finding must name its own package.
+    findings = {f.id: f for f in check_versions(scan(FIX / "vulnerable_project"))}
+    assert findings["LD118"].cve == findings["LD119"].cve == "CVE-2026-71433"
+    assert findings["LD118"].fix == 'pip install "langgraph-checkpoint-sqlite>=3.1.1"'
+    assert findings["LD119"].fix == 'pip install "langgraph-checkpoint-postgres>=3.1.1"'
+
+
+def test_suppressing_the_shared_cve_hits_both_entries():
+    # Suppression matches on CVE, so one --ignore silences both packages.
+    findings = check_versions(scan(FIX / "vulnerable_project"))
+    shared = [f for f in findings if f.matches_id("cve-2026-71433")]
+    assert {f.id for f in shared} == {"LD118", "LD119"}
 
 
 def test_findings_carry_derived_severity_and_fix():

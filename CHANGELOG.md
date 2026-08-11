@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-11
+
+Advisory data update (LD118–LD119), surfaced by the weekly watcher.
+
+### Added
+- **LD118 / LD119** — CVE-2026-71433: namespace prefix matching crosses segment
+  boundaries in the LangGraph SQLite and Postgres stores. Namespaces are stored
+  dot-joined and scoped reads use `LIKE '<path>%'`, so a scoped `search` /
+  `list_namespaces` also returns sibling namespaces sharing leading characters
+  (cross-tenant state leak). Medium (CVSS 5.3), both fixed in 3.1.1.
+  - One CVE, two packages: the schema models one package per advisory, so this
+    ships as two entries sharing the CVE and aliases. Each finding names the
+    package actually installed in its fix line; suppressing the CVE silences both.
+  - First coverage for `langgraph-checkpoint-postgres`.
+
+### Changed
+- Test fixtures: `clean_project` bumps `langgraph-checkpoint-sqlite` to 3.1.1
+  (3.1.0 is affected by the new advisory) and both fixtures now pin
+  `langgraph-checkpoint-postgres`.
+
 ## [0.1.2] - 2026-07-20
 
 Advisory data update (LD115–LD117), surfaced by the weekly watcher.
@@ -85,7 +105,8 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/elaz48/langdoctor/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/elaz48/langdoctor/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/elaz48/langdoctor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/elaz48/langdoctor/releases/tag/v0.1.0

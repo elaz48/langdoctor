@@ -10,10 +10,10 @@ from langdoctor.advisories import (
 def test_db_loads_schema_v2():
     db = load_db()
     assert db.schema_version == 2
-    assert db.updated == "2026-07-20"
+    assert db.updated == "2026-08-11"
     ids = {a.id for a in db.advisories}
     assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
-            "LD115", "LD116", "LD117", "LD150"} <= ids
+            "LD115", "LD116", "LD117", "LD118", "LD119", "LD150"} <= ids
 
 
 def test_normalize_name():
