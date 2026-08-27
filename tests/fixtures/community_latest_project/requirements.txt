@@ -1,0 +1,3 @@
+# The newest langchain-community release. The two patched advisories drop out;
+# LD127 stays, because upstream has not shipped a release carrying its fix.
+langchain-community==0.4.2

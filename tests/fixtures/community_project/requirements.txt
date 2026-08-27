@@ -1,0 +1,3 @@
+# Pre-0.0.28 langchain-community: trips every langchain-community advisory,
+# including LD127, which has no released fix at all.
+langchain-community==0.0.27

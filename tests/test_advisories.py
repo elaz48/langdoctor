@@ -14,7 +14,7 @@ def test_db_loads_schema_v2():
     ids = {a.id for a in db.advisories}
     assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
             "LD115", "LD116", "LD117", "LD118", "LD119", "LD120", "LD121",
-            "LD122", "LD123", "LD124", "LD150"} <= ids
+            "LD122", "LD123", "LD124", "LD125", "LD126", "LD127", "LD150"} <= ids
 
 
 def test_normalize_name():
@@ -129,3 +129,27 @@ def test_dual_line_ranges_ld117():
 def test_every_advisory_has_a_reference():
     for adv in load_db().advisories:
         assert adv.refs, f"{adv.id} has no refs"
+
+
+# --- langchain-community ---------------------------------------------------
+
+def test_langchain_community_advisories_present():
+    by = {a.id: a for a in load_db().advisories}
+    assert by["LD125"].package == "langchain-community"
+    assert by["LD126"].package == "langchain-community"
+    assert by["LD127"].package == "langchain-community"
+    assert by["LD125"].severity() == "critical"  # NVD primary 10.0
+    assert by["LD126"].severity() == "high"      # huntr CNA 7.5
+    assert by["LD127"].severity() == "high"      # VulnCheck 8.6
+
+
+def test_ld127_has_no_fix_because_upstream_has_not_released_one():
+    """CVE-2026-72848 is fixed in main but no release carries it, so the
+    advisory deliberately has an open-ended range and no fix version."""
+    ld127 = {a.id: a for a in load_db().advisories}["LD127"]
+    assert ld127.fixed_in is None
+    assert len(ld127.ranges) == 1
+    assert ld127.ranges[0].fixed is None
+    # An unbounded range means every version is affected, including the newest.
+    assert version_affected("0.4.2", ld127.ranges)
+    assert version_affected("99.0.0", ld127.ranges)

@@ -134,3 +134,27 @@ def test_open_specifier_not_flagged(tmp_path):
     (tmp_path / "requirements.txt").write_text("langgraph>=1.0\n", encoding="utf-8")
     findings = check_versions(scan(tmp_path))
     assert "LD102" not in _ids(findings)
+
+
+def test_community_project_trips_every_langchain_community_advisory():
+    findings = {f.id: f for f in check_versions(scan(FIX / "community_project"))}
+    assert {"LD125", "LD126", "LD127"} <= findings.keys()
+    assert findings["LD125"].fix == 'pip install "langchain-community>=0.0.28"'
+    assert findings["LD126"].fix == 'pip install "langchain-community>=0.3.27"'
+
+
+def test_unfixed_advisory_still_fires_on_the_newest_release_without_a_fix_line():
+    """LD127 has no released fix, so the newest langchain-community is still
+    affected and langdoctor must report it with no upgrade to recommend rather
+    than inventing one or staying silent."""
+    findings = check_versions(scan(FIX / "community_latest_project"))
+    assert _ids(findings) == {"LD127"}
+    assert findings[0].fix is None
+    assert findings[0].severity == "high"
+    assert findings[0].cve == "CVE-2026-72848"
+
+
+def test_community_name_normalization(tmp_path):
+    # PEP 503: the underscore spelling has to resolve to the same advisories.
+    (tmp_path / "requirements.txt").write_text("langchain_community==0.3.26\n", encoding="utf-8")
+    assert {"LD126", "LD127"} <= _ids(check_versions(scan(tmp_path)))
