@@ -61,7 +61,20 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD109` | Known CVEs | high | SQL injection in the SQLite store implementation |
 | `LD110` | Known CVEs | high | SQL injection via filter key in SqliteStore |
 | `LD111` | Known CVEs | high 🔴KEV | Path traversal → RCE via /api/v2/files upload (Langflow) |
-| `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.10.1) |
+| `LD112` | Known CVEs | medium | Unsafe URL path construction in the LangGraph SDK |
+| `LD113` | Known CVEs | high | Template injection via attribute access in prompt templates |
+| `LD114` | Known CVEs | medium | Path traversal and sandbox escape in file-search middleware |
+| `LD115` | Known CVEs | low | SSRF via image_url token counting |
+| `LD116` | Known CVEs | medium | Incomplete f-string validation in prompt templates |
+| `LD117` | Known CVEs | high | Unsafe deserialization via overly broad load() allowlists |
+| `LD118` | Known CVEs | medium | Namespace prefix matching crosses segments (SQLite store) |
+| `LD119` | Known CVEs | medium | Namespace prefix matching crosses segments (Postgres store) |
+| `LD120` | Known CVEs | high 🔴KEV | CORS + SameSite token hijack → account takeover (Langflow) |
+| `LD121` | Known CVEs | critical 🔴KEV | Unauthenticated RCE via exec_globals in validate (Langflow) |
+| `LD122` | Known CVEs | critical 🔴KEV | Unauthenticated RCE via build_public_tmp flow data (Langflow) |
+| `LD123` | Known CVEs | high 🔴KEV | IDOR in /api/v1/responses runs another user's flow (Langflow) |
+| `LD124` | Known CVEs | critical 🔴KEV | auto_login + validate/code chain → unauth RCE (Langflow) |
+| `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.11.0) |
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
 | `LD203` | Checkpointer & state | high (heuristic) | Checkpoint history filtered by user-controlled input |

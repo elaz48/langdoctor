@@ -6,6 +6,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-27
+
+Advisory data + watcher update. Found by cross-checking NVD and the CISA KEV
+catalog by hand — the OSV-only watcher reported "0 new" for weeks while five
+known-exploited Langflow CVEs went uncovered and the aggregate baseline drifted
+two minor lines behind.
+
+### Added
+- **LD120–LD124** — the five CISA KEV Langflow CVEs that had no advisory entry.
+  All are flagged `exploited_in_the_wild`, so they sort above every non-KEV
+  finding:
+  - **LD124** — CVE-2026-9198 (CVSS 9.8, KEV 2026-08-04, three-day federal
+    deadline): `/api/v1/auto_login` mints SUPERUSER tokens to any caller that
+    can reach the port and `/api/v1/validate/code` runs submitted code through
+    `exec()` — chaining them is unauthenticated RCE in two HTTP requests.
+    Fixed in 1.10.1. **Not in OSV at all**, which is precisely why an OSV-only
+    watcher never raised it.
+  - **LD121** — CVE-2026-0770 (CVSS 9.8, KEV 2026-07-21, ZDI-26-036):
+    unauthenticated RCE via the `exec_globals` parameter of the validate
+    endpoint, as root in the default container. Fixed in 1.8.0 — OSV records no
+    fix version, so the bound comes from the NVD CPE range plus the absence of
+    any 1.7.4 release.
+  - **LD122** — CVE-2026-33017 (CVSS 9.8, KEV 2026-03-25): unauthenticated RCE
+    via attacker-supplied flow data in `POST /api/v1/build_public_tmp`, distinct
+    from CVE-2025-3248 (LD106). Sources disagree on the bound (vendor GHSA/OSV
+    say 1.9.0, NVD CPE stops at 1.8.2); we take the wider vendor bound so a
+    1.8.2–1.8.4 install is still flagged.
+  - **LD120** — CVE-2025-34291 (CVSS 8.8, KEV 2026-05-21): `allow_origins='*'`
+    with `allow_credentials=True` plus a `SameSite=None` refresh cookie lets a
+    malicious page hijack tokens, chaining to account takeover and RCE. Fixed in
+    1.7.0. Score is the NVD primary CVSS 3.1 base; the VulnCheck CNA rates it
+    9.4 critical on CVSS 4.0.
+  - **LD123** — CVE-2026-55255 (CVSS 8.4, KEV 2026-07-07): IDOR in
+    `/api/v1/responses` executes another tenant's flow. Fixed in 1.9.1 (GHSA and
+    NVD agree; PYSEC-2026-221 records 1.9.2).
+- **Advisory watcher: CISA KEV as a second source.** `advisory_watch.py` now
+  diffs the KEV catalog alongside OSV, filtered to the LangChain/LangGraph/
+  Langflow ecosystem, and reports KEV misses in their own section above the OSV
+  findings. The two sources fail independently — a KEV outage cannot suppress
+  the OSV report, and a partial OSV run still reports KEV hits.
+- Fixture pair `langflow_baseline_project` (1.10.3) / `langflow_patched_project`
+  (1.11.0) pinning the aggregate baseline regression.
+
+### Changed
+- **LD150** — the aggregate Langflow baseline moves **1.10.1 → 1.11.0**. IBM
+  PSIRT published 24 further Langflow CVEs on 2026-08-05, all affecting
+  `< 1.11.0` and including CVE-2026-8182 (unauthenticated RCE in two HTTP
+  requests, CVSS 8.8); none were indexed by OSV as of 2026-08-27. A project
+  pinned to langflow 1.10.2 or 1.10.3 previously scanned **completely clean**.
+- `.watch-state.json` gains a `known_uncovered_kev` key; the OSV delta keeps its
+  existing `known_uncovered` key. A source that fails to fetch keeps its previous
+  baseline rather than dropping it and re-alerting next week.
+- `README.md` check table now mirrors `list-checks` again — LD112–LD119 shipped
+  in 0.1.1–0.1.3 but were never transcribed into it.
+- `site/index.html`: catalog table gains the KEV entries, check count 25 → 38,
+  advisory date refreshed. (Uploaded manually via FTP — no automated deploy.)
+
+### Fixed
+- `test_cli_ignore_flag` asserted on raw console text, so an advisory detail that
+  cross-references another LD id (LD122 cites LD106) read as a suppressed finding
+  still being present. It now asserts on parsed finding ids.
+
 ## [0.1.3] - 2026-08-11
 
 Advisory data update (LD118–LD119), surfaced by the weekly watcher.
@@ -105,7 +167,8 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/elaz48/langdoctor/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/elaz48/langdoctor/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/elaz48/langdoctor/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/elaz48/langdoctor/compare/v0.1.0...v0.1.1

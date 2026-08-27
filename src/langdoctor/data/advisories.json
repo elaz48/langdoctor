@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated": "2026-08-11",
+  "updated": "2026-08-27",
   "severity_buckets": { "critical": 9.0, "high": 7.0, "medium": 4.0, "low": 0.1 },
   "advisories": [
     {
@@ -301,20 +301,95 @@
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-71433", "https://github.com/advisories/GHSA-47pj-3jcm-6whg"]
     },
     {
+      "id": "LD120",
+      "package": "langflow",
+      "cve": "CVE-2025-34291",
+      "aliases": ["GHSA-577h-p2hh-v4mv", "PYSEC-2025-78"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.7.0" }],
+      "fixed_in": "1.7.0",
+      "cvss_score": 8.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+      "severity_override": null,
+      "exploited_in_the_wild": true,
+      "title": "CORS misconfiguration to token hijack, account takeover and RCE",
+      "detail": "allow_origins='*' combined with allow_credentials=True and a refresh-token cookie set to SameSite=None lets any attacker-controlled page call the refresh endpoint with the victim's credentials and obtain fresh access/refresh token pairs. The stolen session reaches authenticated endpoints, chaining to remote code execution. Added to CISA KEV on 2026-05-21. Score is the NVD primary CVSS 3.1 base (8.8); the VulnCheck CNA rates it 9.4 critical on CVSS 4.0.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2025-34291", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog", "https://github.com/advisories/GHSA-577h-p2hh-v4mv"]
+    },
+    {
+      "id": "LD121",
+      "package": "langflow",
+      "cve": "CVE-2026-0770",
+      "aliases": ["GHSA-g22f-v6f7-2hrh", "PYSEC-2026-1525", "ZDI-26-036", "ZDI-CAN-27325"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.8.0" }],
+      "fixed_in": "1.8.0",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "severity_override": null,
+      "exploited_in_the_wild": true,
+      "title": "Unauthenticated RCE via the exec_globals parameter of the validate endpoint",
+      "detail": "The validate endpoint accepts an attacker-supplied exec_globals mapping and includes it in the execution context, so a remote unauthenticated caller executes arbitrary code — in the default container, as root. Reported through ZDI (ZDI-26-036); added to CISA KEV on 2026-07-21. OSV records no fixed version for this advisory: the 1.8.0 bound comes from the NVD CPE range (affected up to and including 1.7.3) plus the absence of any 1.7.4 release, making 1.8.0 the first unaffected release.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-0770", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog", "https://www.zerodayinitiative.com/advisories/ZDI-26-036/"]
+    },
+    {
+      "id": "LD122",
+      "package": "langflow",
+      "cve": "CVE-2026-33017",
+      "aliases": ["GHSA-vwmf-pq79-vjvx", "PYSEC-2026-379"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.9.0" }],
+      "fixed_in": "1.9.0",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "severity_override": null,
+      "exploited_in_the_wild": true,
+      "title": "Unauthenticated RCE via attacker-supplied flow data in build_public_tmp",
+      "detail": "POST /api/v1/build_public_tmp/{flow_id}/flow builds public flows without authentication, and when the optional data parameter is supplied it uses attacker-controlled node definitions instead of the stored flow, passing that Python code to exec() with no sandboxing. Distinct from CVE-2025-3248 (LD106), which fixed /api/v1/validate/code. Added to CISA KEV on 2026-03-25. Sources disagree on the bound: the vendor GHSA and OSV say fixed in 1.9.0 while the NVD CPE stops at 1.8.2 — we take the wider vendor bound so a 1.8.2-1.8.4 install is still flagged.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-33017", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog", "https://github.com/advisories/GHSA-vwmf-pq79-vjvx"]
+    },
+    {
+      "id": "LD123",
+      "package": "langflow",
+      "cve": "CVE-2026-55255",
+      "aliases": ["GHSA-qrpv-q767-xqq2", "PYSEC-2026-221"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.9.1" }],
+      "fixed_in": "1.9.1",
+      "cvss_score": 8.4,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:C/C:H/I:H/A:L",
+      "severity_override": null,
+      "exploited_in_the_wild": true,
+      "title": "IDOR in /api/v1/responses runs another user's flow",
+      "detail": "The /api/v1/responses endpoint does not check flow ownership, so any authenticated user can execute an arbitrary flow belonging to another tenant by passing the victim's flow ID — reaching that flow's credentials, tools and data. Added to CISA KEV on 2026-07-07: a lower-CVSS authorization bug that is trivially exploitable in practice. GHSA and NVD both fix it at 1.9.1; PYSEC-2026-221 records 1.9.2, and we take the vendor value.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-55255", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog", "https://github.com/advisories/GHSA-qrpv-q767-xqq2"]
+    },
+    {
+      "id": "LD124",
+      "package": "langflow",
+      "cve": "CVE-2026-9198",
+      "aliases": [],
+      "affected_ranges": [{ "introduced": "1.0.0", "fixed": "1.10.1" }],
+      "fixed_in": "1.10.1",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "severity_override": null,
+      "exploited_in_the_wild": true,
+      "title": "auto_login to validate/code chain gives unauthenticated RCE",
+      "detail": "/api/v1/auto_login mints SUPERUSER tokens to any caller that can reach the port, and /api/v1/validate/code executes submitted code via exec(). Chaining the two is full remote code execution against a default deployment in two HTTP requests. Added to CISA KEV on 2026-08-04 with a three-day remediation deadline. Not indexed by OSV as of 2026-08-27 — surfaced via NVD plus the CISA KEV catalog, so the weekly OSV watcher could not have seen it. See also LD403, which flags the auto-login configuration itself.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-9198", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog", "https://www.ibm.com/support/pages/node/7278927"]
+    },
+    {
       "id": "LD150",
       "package": "langflow",
       "cve": null,
       "aliases": [],
-      "affected_ranges": [{ "introduced": "0", "fixed": "1.10.1" }],
-      "fixed_in": "1.10.1",
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.11.0" }],
+      "fixed_in": "1.11.0",
       "cvss_score": null,
       "cvss_vector": null,
       "severity_override": "high",
       "exploited_in_the_wild": false,
       "aggregate": true,
-      "title": "Langflow older than the current secure baseline (1.10.1)",
-      "detail": "Langflow has a large and fast-moving CVE history. Versions below 1.10.1 carry multiple known vulnerabilities beyond those enumerated individually here. Upgrade to the latest release. (Aggregate advisory: the engine suppresses this when a more specific Langflow finding already fired for the same install.)",
-      "refs": ["https://github.com/langflow-ai/langflow/security/advisories"]
+      "title": "Langflow older than the current secure baseline (1.11.0)",
+      "detail": "Langflow has a large and fast-moving CVE history. Versions below 1.11.0 carry multiple known vulnerabilities beyond those enumerated individually here. The baseline moved from 1.10.1 to 1.11.0 because IBM PSIRT published 24 further Langflow CVEs on 2026-08-05, all affecting < 1.11.0 and including CVE-2026-8182 (unauthenticated RCE in two HTTP requests, CVSS 8.8); none of them were indexed by OSV as of 2026-08-27. Upgrade to the latest release. (Aggregate advisory: the engine suppresses this when a more specific Langflow finding already fired for the same install.)",
+      "refs": ["https://github.com/langflow-ai/langflow/security/advisories", "https://nvd.nist.gov/vuln/detail/CVE-2026-8182"]
     }
   ]
 }

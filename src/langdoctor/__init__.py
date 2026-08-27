@@ -4,4 +4,4 @@ brew doctor for your agent stack: scan a project for known CVEs, insecure
 configs, and production footguns — deterministic, offline, no API key.
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"

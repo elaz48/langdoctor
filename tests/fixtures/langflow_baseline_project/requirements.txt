@@ -1,0 +1,4 @@
+# Langflow between the old (1.10.1) and current (1.11.0) secure baseline.
+# No individual LD advisory reaches this version -- only the LD150 aggregate
+# should fire, which is exactly what the stale-baseline regression missed.
+langflow==1.10.3

@@ -10,10 +10,11 @@ from langdoctor.advisories import (
 def test_db_loads_schema_v2():
     db = load_db()
     assert db.schema_version == 2
-    assert db.updated == "2026-08-11"
+    assert db.updated == "2026-08-27"
     ids = {a.id for a in db.advisories}
     assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
-            "LD115", "LD116", "LD117", "LD118", "LD119", "LD150"} <= ids
+            "LD115", "LD116", "LD117", "LD118", "LD119", "LD120", "LD121",
+            "LD122", "LD123", "LD124", "LD150"} <= ids
 
 
 def test_normalize_name():
@@ -48,6 +49,38 @@ def test_kev_flags_present():
     assert by["LD106"].exploited_in_the_wild is True
     assert by["LD111"].exploited_in_the_wild is True
     assert by["LD101"].exploited_in_the_wild is False
+
+
+def test_every_kev_langflow_cve_is_covered_and_flagged():
+    """The six CISA KEV Langflow entries must each map to a KEV-flagged advisory.
+
+    Verified against the KEV catalog on 2026-08-27. An uncovered KEV CVE is the
+    worst kind of miss: langdoctor sorts KEV above everything else, so a gap
+    here is invisible exactly where it matters most.
+    """
+    kev_cves = {
+        "CVE-2025-3248",    # KEV 2025-05-05 -> LD106
+        "CVE-2026-5027",    # exploited in the wild (VulnCheck) -> LD111
+        "CVE-2025-34291",   # KEV 2026-05-21 -> LD120
+        "CVE-2026-0770",    # KEV 2026-07-21 -> LD121
+        "CVE-2026-33017",   # KEV 2026-03-25 -> LD122
+        "CVE-2026-55255",   # KEV 2026-07-07 -> LD123
+        "CVE-2026-9198",    # KEV 2026-08-04 -> LD124
+    }
+    by_cve = {a.cve: a for a in load_db().advisories if a.cve}
+    missing = kev_cves - by_cve.keys()
+    assert not missing, f"KEV CVEs missing from the advisory DB: {sorted(missing)}"
+    for cve in kev_cves:
+        assert by_cve[cve].exploited_in_the_wild is True, f"{cve} not KEV-flagged"
+
+
+def test_ld124_is_not_in_osv_so_it_carries_no_ghsa_alias():
+    # CVE-2026-9198 reached us via NVD + CISA KEV only (OSV had no record on
+    # 2026-08-27), which is why the OSV-only watcher never surfaced it.
+    ld124 = {a.id: a for a in load_db().advisories}["LD124"]
+    assert ld124.cve == "CVE-2026-9198"
+    assert ld124.aliases == ()
+    assert ld124.severity() == "critical"  # CVSS 9.8
 
 
 def test_aliases_recorded():

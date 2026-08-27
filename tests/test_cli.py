@@ -24,10 +24,16 @@ def test_cli_fail_on_never_returns_0():
 
 
 def test_cli_ignore_flag(capsys):
-    rc = main([str(FIX / "vulnerable_project"), "--ignore", "LD106,CVE-2026-5027"])
-    out = capsys.readouterr().out
-    assert "LD106" not in out
-    assert "LD111" not in out  # suppressed via its CVE alias
+    # Assert on parsed finding ids, not raw text: advisory details legitimately
+    # cross-reference other LD ids (LD122 cites LD106), so a substring check
+    # would report a suppressed finding as still present.
+    rc = main([str(FIX / "vulnerable_project"), "--ignore", "LD106,CVE-2026-5027",
+               "--format", "json"])
+    doc = json.loads(capsys.readouterr().out)
+    ids = {f["id"] for f in doc["findings"]}
+    assert "LD106" not in ids
+    assert "LD111" not in ids  # suppressed via its CVE alias
+    assert doc["summary"]["suppressed"] == 2
     assert rc == 1  # other findings remain
 
 
@@ -36,7 +42,7 @@ def test_cli_version(capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "langdoctor" in out
-    assert "advisories as of 2026-08-11" in out
+    assert "advisories as of 2026-08-27" in out
 
 
 def test_cli_list_checks(capsys):

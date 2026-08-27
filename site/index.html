@@ -266,7 +266,7 @@
       <div class="ln">&nbsp;&nbsp;<span class="title">MemorySaver used in a production-bound project</span></div>
       <div class="ln muted">&nbsp;&nbsp;app.py:9 · state is lost on restart, not shared across replicas</div>
       <div class="ln">&nbsp;</div>
-      <div class="ln muted">advisories as of 2026-07-04</div>
+      <div class="ln muted">advisories as of 2026-08-27</div>
     </div><span class="fade" style="--fade-to:#0d1320"></span></div>
   </div>
 </section>
@@ -296,7 +296,7 @@
 
 <section id="checks" class="wrap">
   <div class="eyebrow">The catalog</div>
-  <h2>25 checks, every one with a stable ID.</h2>
+  <h2>38 checks, every one with a stable ID.</h2>
   <p class="lede">Suppress by ID, deep-link the docs, fail CI on a threshold. CVE severities are derived from CVSS; <span style="color:var(--crit);font-weight:700">KEV</span> marks known-exploited.</p>
   <div class="tablewrap"><div class="tablescroll">
     <table>
@@ -306,7 +306,12 @@
         <tr><td class="id">LD105</td><td><span class="sevtag s-critical">critical</span></td><td>Known CVEs</td><td>Serialization-injection secret extraction in dumps/loads</td></tr>
         <tr><td class="id">LD106</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Unauthenticated RCE in Langflow /api/v1/validate/code</td></tr>
         <tr><td class="id">LD111</td><td><span class="sevtag s-high">high</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Path traversal → RCE via Langflow /api/v2/files upload</td></tr>
-        <tr><td class="id">LD150</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>Langflow older than the current secure baseline</td></tr>
+        <tr><td class="id">LD120</td><td><span class="sevtag s-high">high</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>CORS + SameSite token hijack → Langflow account takeover</td></tr>
+        <tr><td class="id">LD121</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Unauthenticated RCE via Langflow exec_globals</td></tr>
+        <tr><td class="id">LD122</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Unauthenticated RCE via Langflow build_public_tmp flow data</td></tr>
+        <tr><td class="id">LD123</td><td><span class="sevtag s-high">high</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>IDOR — Langflow /api/v1/responses runs another user's flow</td></tr>
+        <tr><td class="id">LD124</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Langflow auto_login + validate/code chain → unauth RCE</td></tr>
+        <tr><td class="id">LD150</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>Langflow older than the current secure baseline (1.11.0)</td></tr>
         <tr><td class="id">LD201</td><td><span class="sevtag s-high">high</span></td><td>Checkpointer</td><td>MemorySaver used in a production-bound project</td></tr>
         <tr><td class="id">LD202</td><td><span class="sevtag s-medium">medium</span></td><td>Checkpointer</td><td>SqliteSaver may collapse under write concurrency</td></tr>
         <tr><td class="id">LD203</td><td><span class="sevtag s-high">high</span></td><td>Checkpointer</td><td>Checkpoint history filtered by user-controlled input</td></tr>
