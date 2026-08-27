@@ -57,6 +57,8 @@ PACKAGES = [
     "langgraph-checkpoint-postgres",
     "langchain-core",
     "langchain",
+    "langchain-community",
+    "langchain-classic",
     "langflow",
     "langflow-base",
 ]

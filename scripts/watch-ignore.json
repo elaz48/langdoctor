@@ -1,5 +1,5 @@
 {
-  "note": "Advisories intentionally OUT OF SCOPE for langdoctor -- never alerted by the advisory watcher. Criteria: (1) pre-2025 (2023-2024) historical langchain / langchain-core CVEs in code paths langdoctor does not model (old chains, agents, SQL/PAL exec, community tools); (2) advisories for a package/code path langdoctor does not model that OSV cross-lists onto a covered package, where the fix only affects a line we do not flag (e.g. LangSmith SDK issues attached to langchain and fixed before the 1.x line) -- these can be recent. NOT for deferred-but-planned coverage such as the Langflow long tail -- that is tracked via .watch-state.json instead. Matching is by any identifier, so a CVE here also suppresses its paired GHSA/PYSEC records.",
+  "note": "Advisories intentionally OUT OF SCOPE for langdoctor -- never alerted by the advisory watcher. Criteria: (1) pre-2025 (2023-2024) historical langchain / langchain-core / langchain-community CVEs in code paths langdoctor does not model (old chains, agents, SQL/PAL exec, community tools) -- this applies even to a package langdoctor otherwise covers, since coverage starts at 2025; (2) advisories for a package/code path langdoctor does not model that OSV cross-lists onto a covered package, where the fix only affects a line we do not flag (e.g. LangSmith SDK issues attached to langchain and fixed before the 1.x line) -- these can be recent. NOT for deferred-but-planned coverage such as the Langflow long tail -- that is tracked via .watch-state.json instead. Matching is by any identifier, so a CVE here also suppresses its paired GHSA/PYSEC records.",
   "ignore": {
     "CVE-2023-29374": "pre-2025 langchain: LangChain vulnerable to code injection (out of scope)",
     "CVE-2023-32785": "pre-2025 langchain: Langchain SQL Injection vulnerability (out of scope)",
@@ -20,6 +20,8 @@
     "CVE-2024-10940": "pre-2025 langchain-core: langchain-core allows unauthorized users to read arbitrary files (out of scope)",
     "CVE-2024-1455": "pre-2025 langchain-core: LangChain's XMLOutputParser vulnerable to XML Entity Expansion (out of scope)",
     "CVE-2024-28088": "pre-2025 langchain-core: LangChain directory traversal vulnerability (out of scope)",
+    "CVE-2024-2057": "pre-2025 langchain-community: unsafe pickle in TFIDFRetriever.load_local (out of scope)",
+    "CVE-2024-3095": "pre-2025 langchain-community: SSRF in the WebResearchRetriever component (out of scope)",
     "CVE-2024-2965": "pre-2025 langchain: Denial of service in langchain-community (out of scope)",
     "CVE-2024-3571": "pre-2025 langchain: langchain vulnerable to path traversal (out of scope)",
     "CVE-2024-5998": "pre-2025 langchain: LangChain pickle deserialization of untrusted data (out of scope)",

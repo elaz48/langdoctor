@@ -283,3 +283,45 @@ def test_saving_without_osv_ids_preserves_the_osv_baseline_verbatim(tmp_path):
 
 def test_load_kev_state_missing_file_is_empty(tmp_path):
     assert aw.load_kev_state(tmp_path / "none.json") == set()
+
+
+# --- langchain-community / langchain-classic coverage ----------------------
+
+def test_packages_include_the_community_and_classic_lines():
+    assert "langchain-community" in aw.PACKAGES
+    assert "langchain-classic" in aw.PACKAGES
+
+
+def test_every_known_langchain_community_cve_is_covered_or_ignored():
+    """Every advisory OSV lists for langchain-community must be accounted for.
+
+    Verified against the OSV record set on 2026-08-27: three carry advisories,
+    the rest are pre-2025 and explicitly out of scope. A CVE in neither bucket
+    would alert every week forever, so this pins the decision rather than
+    leaving it to whoever reads the next watch issue.
+    """
+    from langdoctor.advisories import load_db
+
+    covered = aw.covered_identifiers(load_db())
+    ignored = aw.load_ignore(aw.IGNORE_PATH)
+
+    by_advisory = {"CVE-2025-2828", "CVE-2025-6984", "CVE-2026-72848"}
+    by_ignore = {"CVE-2024-2057", "CVE-2024-2965", "CVE-2024-3095",
+                 "CVE-2024-5998", "CVE-2024-8309"}
+
+    assert by_advisory <= covered
+    assert by_ignore <= ignored
+    # and none of them silently sits in both buckets
+    assert not (by_ignore & covered)
+
+
+def test_langchain_classic_only_advisory_is_already_out_of_scope():
+    # langchain-classic joins the watch list at zero data cost: its sole OSV
+    # record is the LangSmith SDK issue we already declared out of scope.
+    assert "CVE-2026-45134" in aw.load_ignore(aw.IGNORE_PATH)
+
+
+def test_community_advisories_are_not_double_listed_in_the_ignore_file():
+    ignored = aw.load_ignore(aw.IGNORE_PATH)
+    for cve in ("CVE-2025-2828", "CVE-2025-6984", "CVE-2026-72848"):
+        assert cve not in ignored
