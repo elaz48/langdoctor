@@ -296,7 +296,7 @@
 
 <section id="checks" class="wrap">
   <div class="eyebrow">The catalog</div>
-  <h2>38 checks, every one with a stable ID.</h2>
+  <h2>41 checks, every one with a stable ID.</h2>
   <p class="lede">Suppress by ID, deep-link the docs, fail CI on a threshold. CVE severities are derived from CVSS; <span style="color:var(--crit);font-weight:700">KEV</span> marks known-exploited.</p>
   <div class="tablewrap"><div class="tablescroll">
     <table>
@@ -311,6 +311,9 @@
         <tr><td class="id">LD122</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Unauthenticated RCE via Langflow build_public_tmp flow data</td></tr>
         <tr><td class="id">LD123</td><td><span class="sevtag s-high">high</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>IDOR — Langflow /api/v1/responses runs another user's flow</td></tr>
         <tr><td class="id">LD124</td><td><span class="sevtag s-critical">critical</span><span class="kevmini">KEV</span></td><td>Known CVEs</td><td>Langflow auto_login + validate/code chain → unauth RCE</td></tr>
+        <tr><td class="id">LD125</td><td><span class="sevtag s-critical">critical</span></td><td>Known CVEs</td><td>SSRF via unrestricted OpenAPI RequestsToolkit (langchain-community)</td></tr>
+        <tr><td class="id">LD126</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>XXE in EverNoteLoader via unguarded iterparse()</td></tr>
+        <tr><td class="id">LD127</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>SSRF via nested sitemap entries in SitemapLoader — no released fix</td></tr>
         <tr><td class="id">LD150</td><td><span class="sevtag s-high">high</span></td><td>Known CVEs</td><td>Langflow older than the current secure baseline (1.11.0)</td></tr>
         <tr><td class="id">LD201</td><td><span class="sevtag s-high">high</span></td><td>Checkpointer</td><td>MemorySaver used in a production-bound project</td></tr>
         <tr><td class="id">LD202</td><td><span class="sevtag s-medium">medium</span></td><td>Checkpointer</td><td>SqliteSaver may collapse under write concurrency</td></tr>

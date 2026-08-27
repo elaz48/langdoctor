@@ -6,6 +6,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-27
+
+First coverage for `langchain-community`, plus `langchain-classic` on the watch
+list. langchain-community is first-party LangChain and pulls 44.8M downloads a
+month, but had no advisory coverage at all — while langflow, at 65k a month,
+carries eight entries.
+
+### Added
+- **LD125** — CVE-2025-2828: SSRF via `RequestsToolkit`, which places no
+  restriction on the addresses it fetches, so an agent steered by untrusted
+  input can reach localhost and internal services. Fixed in 0.0.28. Unusual
+  timeline — the fix shipped in March 2024 but the CVE was only published on
+  2025-06-23, so this fires only on a pre-0.0.28 pin. NVD's primary score is
+  10.0; the huntr CNA scores it 8.4.
+- **LD126** — CVE-2025-6984: XXE in `EverNoteLoader`, which calls
+  `etree.iterparse()` without disabling external entity resolution. Fixed in
+  0.3.27. The huntr write-up (mirrored by NVD) names 0.3.63 as affected, but
+  langchain-community has no such release — its 0.3 line stops at 0.3.31 — so
+  that number is the reporter's `langchain-core` version. GHSA and OSV agree on
+  `< 0.3.27`, which is the bound used here.
+- **LD127** — CVE-2026-72848: SSRF via nested sitemap index entries in
+  `SitemapLoader`, where `restrict_to_same_domain` is enforced only on leaf
+  `<url>` elements. **No released fix** — upstream closed the issue on
+  2026-08-13, but no langchain-community release carries it (0.4.2, from
+  2026-05-22, is still the newest). The advisory therefore has an open-ended
+  range and no fix version, and langdoctor reports it as affected with no
+  upgrade to recommend. Mitigate by not pointing `SitemapLoader` at untrusted
+  sitemaps and by restricting egress from the ingestion host.
+- Advisory watcher now also queries `langchain-community` and
+  `langchain-classic`. The latter joins at zero data cost — its sole OSV record
+  is the LangSmith SDK issue already declared out of scope — but is worth
+  watching because it inherited the legacy chains and is now a hard dependency
+  of langchain-community.
+- Fixture pair `community_project` (0.0.27, trips all three) and
+  `community_latest_project` (0.4.2, only the unfixed LD127 survives).
+
+### Changed
+- `scripts/watch-ignore.json`: two new pre-2025 entries, CVE-2024-2057 (unsafe
+  pickle in `TFIDFRetriever.load_local`) and CVE-2024-3095 (SSRF in
+  `WebResearchRetriever`). CVE-2024-2965 / -5998 / -8309 were already ignored
+  via their langchain cross-listing. The file's note now states that the
+  pre-2025 cutoff applies even to a package langdoctor otherwise covers.
+- `README.md`: check table gains LD125–LD127 (41 rows), plus a note that a
+  finding can legitimately arrive with no fix line.
+- `site/index.html`: catalog table gains the three entries, check count 38 → 41.
+  (Uploaded manually via FTP — no automated deploy.)
+
+### Notes
+- Adding a package needed **no code change**: package support is pure advisory
+  data, and an advisory with a `null` fixed bound already flows correctly
+  through `matched_range` and `_fix_line`.
+- Out of scope by design: CVE-2026-26019 and CVE-2026-27795 look like
+  langchain-community issues but are `@langchain/community` on npm — langdoctor
+  scans Python projects only.
+
 ## [0.1.4] - 2026-08-27
 
 Advisory data + watcher update. Found by cross-checking NVD and the CISA KEV
@@ -167,7 +222,8 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/elaz48/langdoctor/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/elaz48/langdoctor/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/elaz48/langdoctor/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/elaz48/langdoctor/compare/v0.1.1...v0.1.2

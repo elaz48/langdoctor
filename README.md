@@ -74,6 +74,9 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD122` | Known CVEs | critical 🔴KEV | Unauthenticated RCE via build_public_tmp flow data (Langflow) |
 | `LD123` | Known CVEs | high 🔴KEV | IDOR in /api/v1/responses runs another user's flow (Langflow) |
 | `LD124` | Known CVEs | critical 🔴KEV | auto_login + validate/code chain → unauth RCE (Langflow) |
+| `LD125` | Known CVEs | critical | SSRF via unrestricted OpenAPI RequestsToolkit (community) |
+| `LD126` | Known CVEs | high | XXE in EverNoteLoader via unguarded iterparse() (community) |
+| `LD127` | Known CVEs | high | SSRF via nested sitemap entries in SitemapLoader (community) |
 | `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.11.0) |
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
@@ -93,6 +96,11 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 Severities for CVE checks are derived from the CVSS score; `🔴KEV` marks
 [Known-Exploited](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
 vulnerabilities, which are always surfaced first.
+
+A finding can arrive without a fix line. Some advisories have no released fix —
+`LD127` is patched upstream but no `langchain-community` release carries it yet —
+and langdoctor reports those as affected with no upgrade to recommend rather than
+inventing a version or staying quiet.
 
 ## CI integration
 
