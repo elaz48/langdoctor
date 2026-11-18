@@ -121,5 +121,6 @@
     "PYSEC-2026-81",
     "PYSEC-2026-82"
   ],
-  "known_uncovered_kev": []
+  "known_uncovered_kev": [],
+  "known_baseline_drift": []
 }

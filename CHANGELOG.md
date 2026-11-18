@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Advisory watcher: NVD baseline-drift check.** The aggregate LD150 baseline
+  went stale twice (0.1.4, 0.1.6) because IBM PSIRT publishes Langflow CVEs
+  straight to NVD and OSV never indexes them — on 2026-11-18 none of the 108
+  IBM-attributed Langflow CVEs published since 2026-08-20 were in OSV. The
+  weekly watcher now queries NVD for every aggregate advisory and reports CVEs
+  that affect a version at or above its baseline and have no LD entry of their
+  own, in a "Baseline drift" section between KEV and OSV, with the highest
+  stated fix as the suggested new baseline. Version bounds come from NVD's CPE
+  analysis, falling back to the CNA description for records still awaiting
+  analysis. The description is only read in sentences naming the product, near
+  that name — prose routinely cites dependency versions ("requires Python
+  before 3.12") — and a CPE-less record with no readable version is reported
+  as "unparsed" for a human rather than dropped. Replayed against live NVD data
+  it flags 100 CVEs (16 with CVSS ≥ 9.0) for the old 1.11.0 baseline and
+  suggests 1.13.0 — the bump 0.1.6 made by hand — and nothing for the current
+  baseline.
+- `scripts/baseline_drift.py` holds the pure, unit-tested logic;
+  `.watch-state.json` gains `known_baseline_drift`; the workflow passes an
+  optional `NVD_API_KEY` secret (unset is fine — one query a week). NVD pages
+  retry transient errors (403/429/5xx, dropped connections, truncated bodies)
+  within a 5-minute budget, and the job gets `timeout-minutes: 20`. A reply
+  without the results schema, a page short of the total, or zero records for
+  the keyword all count as an outage, so bad data never rewrites the state.
+- The CNA "patched in" boilerplate only counts in its subject-anchored form
+  ("This issue has been patched in version X", "Version X contains a patch")
+  and only when the description names the product, so a dependency's fix
+  ("the dependency foo was patched in 2.5.0") cannot pose as a Langflow one.
+
+### Changed
+- `advisory_watch.main()` is split into one function per source, and each
+  source now runs isolated: an unexpected error in one is logged and never
+  loses another source's report or state. A failed source still reports
+  nothing and keeps its previous state baseline.
+- NVD, OSV and KEV prose pasted into the watch issue has its `@mentions`
+  neutralised, so an advisory text cannot notify arbitrary GitHub users.
+
 ## [0.1.6] - 2026-11-18
 
 Advisory data + watcher update. Two LangGraph CVEs from the open watch issue

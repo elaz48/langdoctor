@@ -1,40 +1,63 @@
 """Weekly advisory watcher — flags advisories not yet in advisories.json.
 
-Two independent sources, because one is not enough (see CLAUDE.md, "Verification
-discipline"):
+Three independent sources, because one is not enough (see CLAUDE.md,
+"Verification discipline"):
 
 1. **OSV.dev** — queried per covered package; the broad, structured baseline.
 2. **CISA KEV** — the known-exploited catalog, filtered to our ecosystem.
+3. **NVD** — checked only for *baseline drift* of aggregate advisories (LD150):
+   a CVE that affects a version at or above the aggregate's baseline and has
+   no advisory of its own means a project on the baseline scans clean while
+   vulnerable. See `baseline_drift.py`.
 
-The second source exists because OSV *lags*. CVE-2026-9198 (LD124) was a
-CVSS 9.8 unauthenticated Langflow RCE on the KEV list with a three-day federal
+KEV exists because OSV *lags*. CVE-2026-9198 (LD124) was a CVSS 9.8
+unauthenticated Langflow RCE on the KEV list with a three-day federal
 remediation deadline, and OSV had no record of it at all — an OSV-only watcher
 reported "0 new" for weeks. KEV is the highest-signal feed langdoctor consumes:
 a KEV entry we do not cover is invisible exactly where the tool sorts loudest.
 
-Results from both are diffed against the IDs + aliases already in the advisory
-DB and written to `advisory-report.md` for the workflow to open as an issue.
+NVD exists because OSV does not index IBM PSIRT's Langflow CVEs at all. LD150
+drifted twice (0.1.4, 0.1.6) while the watcher reported nothing.
+
+Results are diffed against the IDs + aliases already in the advisory DB and
+written to `advisory-report.md` for the workflow to open as an issue.
 
 Design notes:
 - The comparisons are pure (`uncovered_advisories`, `uncovered_kev`,
-  `covered_identifiers`) and unit-tested without any network access.
-- Network is isolated in `fetch_osv` / `fetch_kev`, which never raise — on any
-  API hiccup they log a warning and return None so the run still exits 0. If
-  *every* query fails, the uncovered list is empty and no spurious issue opens.
-- The two sources fail independently: a KEV outage must not suppress the OSV
-  report, and vice versa.
+  `covered_identifiers`, `baseline_drift.baseline_drift`) and unit-tested
+  without any network access.
+- Network is isolated in `fetch_osv` / `fetch_kev` / `fetch_nvd`, which never
+  raise — on any API hiccup they log a warning and return None so the run still
+  exits 0. If *every* query fails, nothing is reported and no spurious issue
+  opens.
+- The sources fail independently: one outage never suppresses another
+  source's report, and a failed source keeps its previous state baseline.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import sys
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import baseline_drift as bd
+
 OSV_URL = "https://api.osv.dev/v1/query"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_PAGE_SIZE = 2000      # NVD's maximum; ~240 Langflow CVEs today = one page
+NVD_MAX_PAGES = 10        # hard stop: a runaway pager must not loop forever
+NVD_PAGE_DELAY_S = 6      # NVD's guidance for unauthenticated clients
+NVD_ATTEMPTS = 3          # per page; NVD answers 503 / rate limits often
+NVD_RETRY_DELAY_S = 15    # x attempt number
+NVD_DEADLINE_S = 300      # whole-fetch budget; the job also has timeout-minutes
+_NVD_RETRYABLE = {403, 429, 500, 502, 503, 504}  # NVD rate-limits with 403
 
 # A KEV entry is "ours" when any of these appears in its vendor/product/name.
 # Deliberately broad: a false positive costs one line in an issue, a false
@@ -47,6 +70,7 @@ STATE_PATH = _HERE.parent / ".watch-state.json"    # committed delta state (know
 
 _STATE_OSV_KEY = "known_uncovered"
 _STATE_KEV_KEY = "known_uncovered_kev"
+_STATE_DRIFT_KEY = "known_baseline_drift"
 
 # Packages langdoctor ships advisories for (plus close ecosystem siblings).
 PACKAGES = [
@@ -220,8 +244,13 @@ def load_kev_state(path) -> set[str]:
     return {_norm(x) for x in (_read_state(path).get(_STATE_KEV_KEY) or [])}
 
 
-def save_state(path, ids=None, kev_ids=None) -> None:
-    """Write both deltas. A source passed as None keeps exactly what is on disk,
+def load_drift_state(path) -> set[str]:
+    """NVD baseline-drift CVEs already alerted as of the last run."""
+    return {_norm(x) for x in (_read_state(path).get(_STATE_DRIFT_KEY) or [])}
+
+
+def save_state(path, ids=None, kev_ids=None, drift_ids=None) -> None:
+    """Write every delta. A source passed as None keeps exactly what is on disk,
     so a fetch failure neither drops its baseline (which would re-alert every
     known advisory next week) nor rewrites its entries."""
     current = _read_state(path)
@@ -229,7 +258,13 @@ def save_state(path, ids=None, kev_ids=None) -> None:
         ids = current.get(_STATE_OSV_KEY) or []
     if kev_ids is None:
         kev_ids = current.get(_STATE_KEV_KEY) or []
-    payload = {_STATE_OSV_KEY: sorted(ids), _STATE_KEV_KEY: sorted(kev_ids)}
+    if drift_ids is None:
+        drift_ids = current.get(_STATE_DRIFT_KEY) or []
+    payload = {
+        _STATE_OSV_KEY: sorted(ids),
+        _STATE_KEV_KEY: sorted(kev_ids),
+        _STATE_DRIFT_KEY: sorted(drift_ids),
+    }
     Path(path).write_text(
         json.dumps(payload, indent=2) + "\n", encoding="utf-8"
     )
@@ -264,7 +299,10 @@ def new_advisories(uncovered: list[dict], known: set[str]) -> list[dict]:
     ]
 
 
-def render_issue(uncovered: list[dict], kev: list[dict] | None = None) -> str:
+def render_issue(
+    uncovered: list[dict], kev: list[dict] | None = None, drift: list[dict] | None = None
+) -> str:
+    """Issue body: KEV first, then aggregate-baseline drift, then plain OSV."""
     lines: list[str] = []
 
     # KEV first and unmissable: known-exploited beats anything merely published.
@@ -282,15 +320,20 @@ def render_issue(uncovered: list[dict], kev: list[dict] | None = None) -> str:
             added = f" · KEV since {u['date_added']}" if u["date_added"] else ""
             due = f" · due {u['due_date']}" if u["due_date"] else ""
             ransom = " · ⚠️ ransomware" if u["ransomware"].lower() == "known" else ""
-            lines.append(f"- **{u['product']}** — `{u['id']}`{added}{due}{ransom}")
+            product = bd.no_mentions(u["product"])
+            lines.append(f"- **{product}** — `{u['id']}`{added}{due}{ransom}")
             if u["name"]:
-                lines.append(f"  - {u['name']}")
+                lines.append(f"  - {bd.no_mentions(u['name'])}")
             if u["summary"]:
-                lines.append(f"  - {u['summary']}")
+                lines.append(f"  - {bd.no_mentions(u['summary'])}")
         lines.append("")
 
+    # Drift next: an aggregate gone stale silently clears whole version lines.
+    if drift:
+        lines += bd.render_drift(drift)
+
     if uncovered:
-        if kev:
+        if kev or drift:
             lines += ["## OSV — published but not covered", ""]
         lines += [
             "The advisory watcher found OSV advisories for covered packages that are "
@@ -304,7 +347,7 @@ def render_issue(uncovered: list[dict], kev: list[dict] | None = None) -> str:
             pkgs = ", ".join(f"**{p}**" for p in u.get("packages") or [u["package"]])
             lines.append(f"- {pkgs} — `{ident}`{alias}{fixed}")
             if u["summary"]:
-                lines.append(f"  - {u['summary']}")
+                lines.append(f"  - {bd.no_mentions(u['summary'])}")
 
     lines += [
         "",
@@ -346,6 +389,73 @@ def fetch_kev() -> list | None:
         return None
 
 
+def fetch_nvd(keyword: str) -> list | None:
+    """Every NVD CVE record matching `keyword`, or None on any error.
+
+    Partial data is treated as failure (None), so a broken page never rewrites
+    the drift state. Unauthenticated NVD access allows 5 requests per 30 s; an
+    optional NVD_API_KEY raises that, but one weekly query is normally one page.
+    """
+    headers = {"User-Agent": "langdoctor-advisory-watch"}
+    api_key = os.environ.get("NVD_API_KEY", "").strip()
+    if api_key:
+        headers["apiKey"] = api_key
+    records: list = []
+    deadline = time.monotonic() + NVD_DEADLINE_S
+    try:
+        for page_no in range(NVD_MAX_PAGES):
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"time budget of {NVD_DEADLINE_S}s spent")
+            if page_no:
+                time.sleep(NVD_PAGE_DELAY_S)
+            query = urllib.parse.urlencode({
+                "keywordSearch": keyword,
+                "resultsPerPage": NVD_PAGE_SIZE,
+                "startIndex": len(records),
+            })
+            page = _nvd_page(f"{NVD_URL}?{query}", headers, deadline)
+            # A 200 without the results schema (an error body, a proxy page)
+            # must not read as "0 CVEs" and empty the drift state.
+            batch = page.get("vulnerabilities") if isinstance(page, dict) else None
+            total = page.get("totalResults") if isinstance(page, dict) else None
+            if not isinstance(batch, list) or not isinstance(total, int):
+                raise RuntimeError("unexpected NVD reply (no totalResults/vulnerabilities)")
+            records += batch
+            if len(records) >= total:
+                return records
+            if not batch:  # short of the total: partial data is failure
+                raise RuntimeError(f"empty page at {len(records)}/{total} records")
+        raise RuntimeError(f"more than {NVD_MAX_PAGES} pages")
+    except Exception as exc:  # noqa: BLE001 - never fail the build on API hiccups
+        print(f"::warning::NVD query failed for {keyword!r}: {exc}", file=sys.stderr)
+        return None
+
+
+def _nvd_page(url: str, headers: dict, deadline: float) -> dict:
+    """One NVD page, retrying transient errors with a growing delay.
+
+    Transient = a retryable HTTP status, or the connection failing mid-way
+    (reset, timeout, truncated body, undecodable JSON). The retry never sleeps
+    past the fetch's overall deadline.
+    """
+    for attempt in range(1, NVD_ATTEMPTS + 1):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _NVD_RETRYABLE or attempt == NVD_ATTEMPTS:
+                raise
+        except (OSError, http.client.HTTPException, json.JSONDecodeError):
+            if attempt == NVD_ATTEMPTS:
+                raise
+        delay = NVD_RETRY_DELAY_S * attempt
+        if time.monotonic() + delay > deadline:
+            raise RuntimeError(f"time budget of {NVD_DEADLINE_S}s spent while retrying")
+        time.sleep(delay)
+    raise RuntimeError("unreachable")
+
+
 def _set_output(name: str, value: str) -> None:
     gh_output = os.environ.get("GITHUB_OUTPUT")
     if gh_output:
@@ -353,64 +463,109 @@ def _set_output(name: str, value: str) -> None:
             fh.write(f"{name}={value}\n")
 
 
-def main() -> int:
-    from langdoctor.advisories import load_db
+# Each source returns (new entries to report, ids for the state file). The ids
+# are None when the source failed, which keeps its previous baseline untouched.
 
-    # Covered = shipped advisories + explicitly out-of-scope (ignored) identifiers.
-    covered = covered_identifiers(load_db()) | load_ignore(IGNORE_PATH)
 
-    # --- source 1: CISA KEV (independent of OSV; failure is isolated) -------
-    new_kev: list[dict] = []
-    kev_ids = None  # None => keep the state already on disk
+def _run_kev(covered: set[str]) -> tuple[list[dict], list[str] | None]:
     kev_vulns = fetch_kev()
     if kev_vulns is None:
-        print("::warning::KEV unavailable this run; OSV diff continues")
-    else:
-        uncovered_kev_list = uncovered_kev(kev_vulns, covered)
-        new_kev = new_advisories(uncovered_kev_list, load_kev_state(STATE_PATH))
-        kev_ids = advisory_ids(uncovered_kev_list)
-        print(
-            f"{len(uncovered_kev_list)} uncovered KEV entries; "
-            f"{len(new_kev)} new since last run"
-        )
-        for u in new_kev:
-            print(f"::warning::uncovered KEV entry {u['id']} ({u['product']})")
+        print("::warning::KEV unavailable this run; the other sources continue")
+        return [], None
+    found = uncovered_kev(kev_vulns, covered)
+    new = new_advisories(found, load_kev_state(STATE_PATH))
+    print(f"{len(found)} uncovered KEV entries; {len(new)} new since last run")
+    for u in new:
+        print(f"::warning::uncovered KEV entry {u['id']} ({u['product']})")
+    return new, advisory_ids(found)
 
-    # --- source 2: OSV, per package ----------------------------------------
+
+def _run_drift(db, covered: set[str]) -> tuple[list[dict], list[str] | None]:
+    watched, unmapped = bd.baseline_targets(db)
+    for adv in unmapped:
+        print(f"::warning::aggregate {adv.id} ({adv.package}) has no NVD keyword in "
+              "baseline_drift.NVD_KEYWORDS; its baseline drift is not checked")
+    if not watched:
+        return [], None
+    found: list[dict] = []
+    for adv, keyword in watched:
+        records = fetch_nvd(keyword)
+        if records is None:  # all-or-nothing, like OSV: partial data never saves
+            print("::warning::NVD unavailable this run; baseline-drift check skipped")
+            return [], None
+        if not records:
+            # Every aggregate exists because of a long CVE history (~240 for
+            # langflow); zero records is an outage, not good news.
+            print(f"::warning::NVD returned no records for {keyword!r}; "
+                  "treated as an outage, baseline-drift check skipped")
+            return [], None
+        found += bd.baseline_drift(records, adv, covered)
+    new = new_advisories(found, load_drift_state(STATE_PATH))
+    print(f"{len(found)} baseline-drift CVEs; {len(new)} new since last run")
+    for e in new:
+        print(f"::warning::baseline drift: {e['id']} affects {e['package']} "
+              f">= {e['baseline']} ({e['advisory']})")
+    return new, advisory_ids(found)
+
+
+def _run_osv(covered: set[str]) -> tuple[list[dict], list[str] | None]:
     osv_by_package: dict = {}
-    errors = 0
     for package in PACKAGES:
         result = fetch_osv(package)
         if result is None:
-            errors += 1
-            continue
+            # On partial data do NOT diff or rewrite the OSV state — a transient
+            # outage must never drop known advisories or emit false alerts.
+            print(f"::warning::OSV query failed for {package}; "
+                  "skipping OSV report and state update this run")
+            return [], None
         osv_by_package[package] = result
+    found = uncovered_advisories(osv_by_package, covered)
+    new = new_advisories(found, load_state(STATE_PATH))
+    print(f"{len(found)} uncovered advisories; {len(new)} new since last run")
+    return new, advisory_ids(found)
 
-    # On partial data (any query failed) do NOT diff or rewrite the OSV state — a
-    # transient OSV outage must never drop known advisories or emit false alerts.
-    # A KEV hit found above is still reported: it does not depend on OSV.
-    new: list[dict] = []
-    osv_ids = None
-    if errors:
-        print(
-            f"::warning::{errors}/{len(PACKAGES)} OSV queries failed; "
-            "skipping OSV report and state update this run"
-        )
-    else:
-        uncovered = uncovered_advisories(osv_by_package, covered)
-        new = new_advisories(uncovered, load_state(STATE_PATH))
-        osv_ids = advisory_ids(uncovered)
-        print(f"{len(uncovered)} uncovered advisories; {len(new)} new since last run")
 
+def _isolated(name: str, run, *args) -> tuple[list[dict], list[str] | None]:
+    """Run one source; an unexpected error there must not lose the others."""
+    try:
+        return run(*args)
+    except Exception as exc:  # noqa: BLE001 - one broken source is non-fatal
+        print(f"::warning::{name} source failed (non-fatal): {exc}", file=sys.stderr)
+        return [], None
+
+
+def _render_report(new_osv: list[dict], new_kev: list[dict], new_drift: list[dict]) -> str:
+    """The issue body; if the drift section cannot render, list its CVE ids so
+    the KEV/OSV findings and the drift alert still reach the issue."""
+    try:
+        return render_issue(new_osv, new_kev, new_drift)
+    except Exception as exc:  # noqa: BLE001 - a render bug must not lose the report
+        print(f"::warning::drift section failed to render (non-fatal): {exc}", file=sys.stderr)
+        ids = "\n".join(f"- `{e.get('id')}`" for e in new_drift)
+        fallback = f"## ⚠️ Baseline drift (details failed to render)\n\n{ids}\n\n"
+        return fallback + render_issue(new_osv, new_kev)
+
+
+def main() -> int:
+    from langdoctor.advisories import load_db
+
+    db = load_db()
+    # Covered = shipped advisories + explicitly out-of-scope (ignored) identifiers.
+    covered = covered_identifiers(db) | load_ignore(IGNORE_PATH)
+
+    new_kev, kev_ids = _isolated("KEV", _run_kev, covered)
+    new_drift, drift_ids = _isolated("NVD baseline drift", _run_drift, db, covered)
+    new_osv, osv_ids = _isolated("OSV", _run_osv, covered)
+
+    has_news = new_osv or new_kev or new_drift
     with open("advisory-report.md", "w", encoding="utf-8") as fh:
-        fh.write(render_issue(new, new_kev) if (new or new_kev) else "")
+        fh.write(_render_report(new_osv, new_kev, new_drift) if has_news else "")
 
-    # State mirrors the current uncovered sets: newly-seen entries stop
-    # re-alerting, and anything we later cover drops out naturally. A source
-    # that failed passes None and keeps its previous baseline untouched.
-    if osv_ids is not None or kev_ids is not None:
-        save_state(STATE_PATH, osv_ids, kev_ids)
-    _set_output("new_count", str(len(new) + len(new_kev)))
+    # State mirrors the current sets: newly-seen entries stop re-alerting, and
+    # anything we later cover (or a baseline bump) drops out naturally.
+    if any(ids is not None for ids in (osv_ids, kev_ids, drift_ids)):
+        save_state(STATE_PATH, osv_ids, kev_ids, drift_ids)
+    _set_output("new_count", str(len(new_osv) + len(new_kev) + len(new_drift)))
     return 0
 
 

@@ -1,9 +1,11 @@
 name: Advisory watch
 
-# Weekly delta check against TWO sources: does OSV or the CISA KEV catalog know
+# Weekly delta check against THREE sources: does OSV or the CISA KEV catalog know
 # about an advisory for our packages that advisories.json doesn't cover and we
 # haven't already tracked? KEV is checked because OSV lags -- CVE-2026-9198 was
-# a KEV-listed CVSS 9.8 Langflow RCE that OSV had no record of at all.
+# a KEV-listed CVSS 9.8 Langflow RCE that OSV had no record of at all. NVD is
+# checked for drift of aggregate baselines (LD150): IBM PSIRT's Langflow CVEs
+# never reach OSV, and LD150 went stale twice before this check existed.
 # Out-of-scope advisories (scripts/watch-ignore.json) are never alerted;
 # everything else is tracked in .watch-state.json so it alerts once, not weekly.
 
@@ -19,6 +21,7 @@ permissions:
 jobs:
   watch:
     runs-on: ubuntu-latest
+    timeout-minutes: 20   # NVD retries are bounded; never hang for 6 hours
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,8 +29,11 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -e .
 
-      - name: Query OSV + CISA KEV and diff against advisories.json
+      - name: Query OSV + CISA KEV + NVD and diff against advisories.json
         id: watch
+        env:
+          # Optional: raises NVD's rate limit. Unset is fine -- one query a week.
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: python scripts/advisory_watch.py   # always exits 0
 
       - name: Report newly-uncovered advisories

@@ -1,7 +1,11 @@
+import io
 import json
 import sys
+import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 # The watcher lives in scripts/ (not part of the installed package).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -435,3 +439,230 @@ def test_malformed_affected_entries_do_not_crash_the_package_listing():
                                             {"package": {"name": "langflow"}}]}
     [r] = aw.uncovered_advisories({"langflow": [vuln]}, COVERED)
     assert r["packages"] == ["langflow"]
+
+
+# --- NVD baseline drift as a third source ------------------------------------
+
+def _drift_entry(cve="CVE-2099-8", version="1.14.0"):
+    return {"id": cve, "advisory": "LD150", "package": "langflow", "baseline": "1.13.0",
+            "bound": "fixed", "version": version, "source": "cpe", "cvss": 9.8,
+            "published": "2026-11-20", "summary": "IBM Langflow OSS ... RCE"}
+
+
+def test_render_issue_orders_kev_then_drift_then_osv():
+    body = aw.render_issue(
+        [{"package": "langflow", "id": "GHSA-x", "aliases": [], "summary": "s", "fixed": []}],
+        aw.uncovered_kev([_kev("CVE-2099-9")], COVERED),
+        [_drift_entry()],
+    )
+    assert body.index("CISA KEV") < body.index("Baseline drift") < body.index("OSV")
+    assert "CVE-2099-8" in body
+
+
+def test_render_issue_with_only_drift():
+    body = aw.render_issue([], None, [_drift_entry()])
+    assert "Baseline drift" in body
+    assert "CISA KEV" not in body
+    assert "advisories.json" in body
+
+
+def test_drift_state_is_kept_apart_from_osv_and_kev(tmp_path):
+    p = tmp_path / ".watch-state.json"
+    aw.save_state(p, {"GHSA-osv"}, {"CVE-kev"}, {"CVE-drift"})
+    assert aw.load_state(p) == {"GHSA-OSV"}
+    assert aw.load_kev_state(p) == {"CVE-KEV"}
+    assert aw.load_drift_state(p) == {"CVE-DRIFT"}
+
+
+def test_saving_without_drift_ids_preserves_the_drift_baseline(tmp_path):
+    # An NVD outage (or rate limit) must not wipe the baseline and re-alert.
+    p = tmp_path / ".watch-state.json"
+    aw.save_state(p, {"GHSA-a"}, {"CVE-kev"}, {"CVE-drift"})
+    aw.save_state(p, {"GHSA-b"}, {"CVE-kev"})          # NVD unavailable this run
+    assert aw.load_drift_state(p) == {"CVE-DRIFT"}
+
+
+def test_drift_delta_alerts_once():
+    drift = [_drift_entry("CVE-2099-1"), _drift_entry("CVE-2099-2")]
+    known = set(aw.advisory_ids(drift[:1]))
+    assert [d["id"] for d in aw.new_advisories(drift, known)] == ["CVE-2099-2"]
+
+
+def test_load_drift_state_missing_file_is_empty(tmp_path):
+    assert aw.load_drift_state(tmp_path / "none.json") == set()
+
+
+# --- fetch_nvd and source isolation (review hardening) -----------------------
+
+class _Resp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _page(records, total):
+    return _Resp(json.dumps({"vulnerabilities": records, "totalResults": total}).encode())
+
+
+def _fake_urlopen(responses, seen=None):
+    queue = list(responses)
+
+    def urlopen(req, timeout=None):
+        if seen is not None:
+            seen.append(req)
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+    return urlopen
+
+
+def _http(code):
+    return urllib.error.HTTPError("https://nvd", code, "err", {}, None)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    monkeypatch.setattr(aw.time, "sleep", lambda s: None)
+
+
+def test_fetch_nvd_follows_pages_until_total(monkeypatch, no_sleep):
+    seen = []
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen(
+        [_page([{"cve": {"id": "A"}}, {"cve": {"id": "B"}}], 3), _page([{"cve": {"id": "C"}}], 3)],
+        seen))
+    assert [r["cve"]["id"] for r in aw.fetch_nvd("langflow")] == ["A", "B", "C"]
+    assert "startIndex=2" in seen[1].full_url
+
+
+def test_fetch_nvd_treats_a_short_empty_page_as_failure(monkeypatch, no_sleep):
+    # Review finding: returning the partial list would empty the drift state
+    # and re-alert everything next week.
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen(
+        [_page([{"cve": {"id": "A"}}], 5), _page([], 5)]))
+    assert aw.fetch_nvd("langflow") is None
+
+
+def test_fetch_nvd_retries_a_transient_error(monkeypatch, no_sleep):
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen(
+        [_http(503), _page([{"cve": {"id": "A"}}], 1)]))
+    assert [r["cve"]["id"] for r in aw.fetch_nvd("langflow")] == ["A"]
+
+
+def test_fetch_nvd_gives_up_as_none_without_raising(monkeypatch, no_sleep):
+    monkeypatch.setattr(aw.urllib.request, "urlopen",
+                        _fake_urlopen([_http(503)] * 10))
+    assert aw.fetch_nvd("langflow") is None
+
+
+def test_fetch_nvd_sends_the_optional_api_key(monkeypatch, no_sleep):
+    seen = []
+    monkeypatch.setenv("NVD_API_KEY", "k-123")
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen([_page([], 0)], seen))
+    assert aw.fetch_nvd("langflow") == []
+    assert seen[0].get_header("Apikey") == "k-123"
+
+
+def _isolated_main(monkeypatch, tmp_path, drift_raises=False):
+    state = tmp_path / ".watch-state.json"
+    aw.save_state(state, {"GHSA-old"}, set(), {"CVE-kept"})
+    monkeypatch.setattr(aw, "STATE_PATH", state)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "out"))
+    monkeypatch.setattr(aw, "fetch_kev", lambda: [_kev("CVE-2099-7777")])
+    monkeypatch.setattr(aw, "fetch_osv", lambda p: [])
+    monkeypatch.setattr(aw, "fetch_nvd", lambda k: [])
+    if drift_raises:
+        def boom(*a, **k):
+            raise ValueError("unexpected NVD shape")
+        monkeypatch.setattr(aw.bd, "baseline_drift", boom)
+    assert aw.main() == 0
+    return state
+
+
+def test_a_crashing_source_does_not_lose_the_others(monkeypatch, tmp_path):
+    # Review finding: an exception in the drift path used to abort main()
+    # before the KEV/OSV report and state were written.
+    state = _isolated_main(monkeypatch, tmp_path, drift_raises=True)
+    assert "CVE-2099-7777" in (tmp_path / "advisory-report.md").read_text(encoding="utf-8")
+    assert aw.load_kev_state(state) == {"CVE-2099-7777"}
+    assert aw.load_state(state) == set()             # OSV ran: nothing uncovered
+    assert aw.load_drift_state(state) == {"CVE-KEPT"}  # drift failed: baseline kept
+    assert (tmp_path / "out").read_text(encoding="utf-8") == "new_count=1\n"
+
+
+def test_main_writes_an_empty_report_when_nothing_is_new(monkeypatch, tmp_path):
+    monkeypatch.setattr(aw, "uncovered_kev", lambda v, c: [])
+    _isolated_main(monkeypatch, tmp_path)
+    assert (tmp_path / "advisory-report.md").read_text(encoding="utf-8") == ""
+    assert (tmp_path / "out").read_text(encoding="utf-8") == "new_count=0\n"
+
+
+def test_render_issue_neutralises_mentions_in_osv_and_kev_text():
+    body = aw.render_issue(
+        [{"package": "langflow", "id": "GHSA-x", "aliases": [], "summary": "by @alice",
+          "fixed": []}],
+        aw.uncovered_kev([_kev("CVE-2099-9", short="ping @bob")], COVERED),
+    )
+    assert "@alice" not in body and "@bob" not in body
+
+
+# --- second review pass -------------------------------------------------------
+
+@pytest.mark.parametrize("payload", [{}, {"message": "rate limited"},
+                                     {"totalResults": "5", "vulnerabilities": []},
+                                     {"totalResults": 3}])
+def test_fetch_nvd_rejects_a_malformed_reply(monkeypatch, no_sleep, payload):
+    # Review finding: a 200 with no results schema used to read as "0 CVEs",
+    # emptying the drift state and re-alerting everything next week.
+    monkeypatch.setattr(aw.urllib.request, "urlopen",
+                        _fake_urlopen([_Resp(json.dumps(payload).encode())] * 3))
+    assert aw.fetch_nvd("langflow") is None
+
+
+def test_fetch_nvd_retries_a_dropped_connection(monkeypatch, no_sleep):
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen(
+        [ConnectionResetError("reset"), _page([{"cve": {"id": "A"}}], 1)]))
+    assert [r["cve"]["id"] for r in aw.fetch_nvd("langflow")] == ["A"]
+
+
+def test_fetch_nvd_gives_up_once_its_time_budget_is_spent(monkeypatch, no_sleep):
+    clock = iter([0.0, aw.NVD_DEADLINE_S + 1] + [aw.NVD_DEADLINE_S + 2] * 20)
+    monkeypatch.setattr(aw.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(aw.urllib.request, "urlopen", _fake_urlopen(
+        [_page([{"cve": {"id": "A"}}], 3)] * 5))
+    assert aw.fetch_nvd("langflow") is None
+
+
+def test_zero_nvd_records_keeps_the_drift_baseline(monkeypatch, tmp_path):
+    # ~240 Langflow CVEs exist; an empty answer is an outage, not good news.
+    state = _isolated_main(monkeypatch, tmp_path)
+    assert aw.load_drift_state(state) == {"CVE-KEPT"}
+
+
+def test_a_failing_drift_render_still_writes_the_rest(monkeypatch, tmp_path):
+    def boom(entries):
+        raise KeyError("bound")
+    monkeypatch.setattr(aw.bd, "render_drift", boom)
+    monkeypatch.setattr(aw.bd, "baseline_drift", lambda records, adv, covered: [
+        {"id": "CVE-2099-5", "advisory": "LD150", "package": "langflow",
+         "baseline": "1.13.0"}])
+    monkeypatch.setattr(aw, "fetch_nvd", lambda k: [{"cve": {"id": "CVE-2099-5"}}])
+    state = tmp_path / ".watch-state.json"
+    monkeypatch.setattr(aw, "STATE_PATH", state)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(aw, "fetch_kev", lambda: [_kev("CVE-2099-7777")])
+    monkeypatch.setattr(aw, "fetch_osv", lambda p: [])
+    assert aw.main() == 0
+    report = (tmp_path / "advisory-report.md").read_text(encoding="utf-8")
+    assert "CVE-2099-7777" in report       # KEV section survived
+    assert "CVE-2099-5" in report          # drift CVE still named, unrendered
+    assert aw.load_drift_state(state) == {"CVE-2099-5"}
+
+
+def test_kev_product_mentions_are_neutralised():
+    body = aw.render_issue([], aw.uncovered_kev(
+        [_kev("CVE-2099-9", vendor="Langflow @mallory")], COVERED))
+    assert "@mallory" not in body
