@@ -6,6 +6,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-18
+
+Advisory data + watcher update. Two LangGraph CVEs from the open watch issue
+(#4) made the "clean" test fixture vulnerable, and — for the second time — the
+Langflow aggregate baseline had drifted: IBM PSIRT published ~99 Langflow CVEs
+fixed above 1.11.0 that OSV never indexed, so a project on 1.11.x or 1.12.x
+scanned completely clean.
+
+### Added
+- **LD128 / LD129** — CVE-2026-115883: namespace labels containing `.` reach
+  other namespaces in the LangGraph SQLite / Postgres stores. Only `put`
+  rejected such labels; `get`, `search`, `delete`, `list_namespaces` and
+  `batch` did not, so a caller who controls a label can read, overwrite or
+  delete another tenant's items. Follow-up to CVE-2026-71433 (LD118/LD119):
+  3.1.1 is still affected. Fixed in sqlite **3.1.2** and postgres **3.1.3** —
+  one CVE, two packages, and unlike LD118/LD119 two different fix versions.
+  Medium (GitHub CNA, CVSS 4.0: 6.0; NVD has no primary score yet).
+- **LD130 / LD131** — CVE-2026-118667: the LangGraph SDK v3 streaming client
+  puts `thread_id` / `assistant_id` into request paths unencoded, so a crafted
+  id redirects an authenticated GET to another path on the server. Affects
+  `langgraph-sdk` 0.4.0–0.4.5 (LD130; the 0.3.x line has no v3 stream module)
+  and `langgraph` 1.2.3–1.2.13 through RemoteGraph (LD131). Medium (CNA 4.3).
+- **LD132** — CVE-2026-104873: the `langgraph-sdk` custom-auth decorators
+  (`@auth.on.threads` / `.assistants` / `.crons`) ignore `actions=` and register
+  the handler for every action, so authorization checks in fallback handlers
+  never run. 0.1.45–0.4.3, fixed in 0.4.4. High (CNA, CVSS 4.0: 7.6). It was
+  not on the watch issue because `langgraph-sdk` was not watched; found by
+  cross-checking NVD.
+- **LD133** — CVE-2026-48776 on `langgraph-sdk < 0.3.15`. The vendor GHSA and
+  PYSEC-2026-2575 attribute it to the SDK; LD112 follows PYSEC-2026-2194, which
+  files it under `langgraph`. LD112 is a shipped ID and stays; LD133 makes an
+  old SDK pinned next to a modern langgraph visible.
+- First coverage for `langgraph-sdk`, and the advisory watcher now queries it.
+  All five of its current OSV records are covered, so this opens no issue.
+
+### Changed
+- **LD150** — the aggregate Langflow baseline moves **1.11.0 → 1.13.0**. IBM
+  PSIRT published ~99 further Langflow CVEs between 2026-08-28 and 2026-11-08,
+  with fixes from 1.11.2 to 1.13.0 — 16 of them CVSS ≥ 9.0, including
+  CVE-2026-110186 (remote code execution through 1.12.8, CVSS 9.8). OSV had
+  indexed none of the 108 IBM-attributed Langflow CVEs published since
+  2026-08-20. 1.12.9 and 1.12.10 shipped after 1.13.0, but they branch from
+  release-1.12.8 and backport only the 1.13.0 → 1.13.1 delta (langflow PR
+  #16119), so they stay below the baseline.
+- Test fixtures: `clean_project` moves to langgraph 1.2.14, langgraph-sdk
+  0.4.6, checkpoint-sqlite 3.1.2 and checkpoint-postgres 3.1.3 — its 1.2.7 /
+  3.1.1 pins were affected by the new advisories yet scanned clean.
+  `vulnerable_project` gains `langgraph-sdk==0.4.3`; `langflow_baseline_project`
+  moves to 1.12.8 and `langflow_patched_project` to 1.13.0.
+- `README.md`: check table gains LD128–LD133 (47 rows) and the new LD150 baseline.
+- `site/index.html`: catalog gains LD132 and the new LD150 baseline; check
+  count 41 → 47 (the hero pill still said 25); advisory date refreshed.
+  (Uploaded manually via FTP — no automated deploy.)
+- `.watch-state.json` re-seeded: the now-covered GHSA-3fx2-cqw9-xr3c and
+  GHSA-6hmw-9432-67qq drop out, and entries carry their aliases (see Fixed).
+
+### Fixed
+- **The advisory watcher re-alerted known advisories under a new id.** The
+  delta compared only the primary OSV id, so when OSV published PYSEC records
+  for ten Langflow GHSAs alerted the week before, the 2026-10-19 comment on #4
+  was entirely duplicates. The state file now stores every identifier (id +
+  aliases), and an advisory is new only if none of them is known — in either
+  publication order.
+- **The watch report named one package per advisory.** A record spanning
+  several packages (GHSA-6hmw: sqlite *and* postgres, with different fixes) was
+  attributed to whichever watched package returned it first. The report now
+  lists every package the record names; malformed `affected` rows are skipped
+  instead of aborting the run.
+- **The heuristic specifier check ignored an advisory's lower bound.** A capped
+  specifier such as `langgraph<1.0.0` was flagged for any single-range advisory
+  whose fix it could not reach — even one whose range starts above it (LD131
+  starts at 1.2.3). A range with a non-zero `introduced` is now flagged only
+  when the specifier can resolve into the affected window; `>1.2.3`, `!=1.2.3`
+  and `>=1.2.5,<1.2.10` still count.
+
+### Notes
+- Langflow GHSAs on watch issue #4 (all fixed ≤ 1.10.3) stay covered in
+  aggregate by LD150.
+- Seen on NVD but out of scope — packages langdoctor does not scan:
+  `langgraph-api` (CVE-2026-55235, -55236, -118668), `langgraph-cli`
+  (CVE-2026-115885), `langgraph-checkpoint-mongodb` / `langchain-mongodb`
+  (CVE-2026-55253, -106119).
+
 ## [0.1.5] - 2026-08-27
 
 First coverage for `langchain-community`, plus `langchain-classic` on the watch
@@ -222,7 +305,8 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/elaz48/langdoctor/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/elaz48/langdoctor/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/elaz48/langdoctor/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/elaz48/langdoctor/compare/v0.1.2...v0.1.3

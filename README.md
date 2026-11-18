@@ -77,7 +77,13 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD125` | Known CVEs | critical | SSRF via unrestricted OpenAPI RequestsToolkit (community) |
 | `LD126` | Known CVEs | high | XXE in EverNoteLoader via unguarded iterparse() (community) |
 | `LD127` | Known CVEs | high | SSRF via nested sitemap entries in SitemapLoader (community) |
-| `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.11.0) |
+| `LD128` | Known CVEs | medium | Dotted namespace labels reach other namespaces (SQLite store) |
+| `LD129` | Known CVEs | medium | Dotted namespace labels reach other namespaces (Postgres store) |
+| `LD130` | Known CVEs | medium | Unencoded ids in v3 streaming redirect authenticated GETs (langgraph-sdk) |
+| `LD131` | Known CVEs | medium | RemoteGraph v3 streaming passes unencoded thread ids to the SDK |
+| `LD132` | Known CVEs | high | Custom-auth decorators ignore `actions=` → authz bypass (langgraph-sdk) |
+| `LD133` | Known CVEs | medium | Unsafe URL path construction in the LangGraph SDK (langgraph-sdk) |
+| `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.13.0) |
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
 | `LD203` | Checkpointer & state | high (heuristic) | Checkpoint history filtered by user-controlled input |
