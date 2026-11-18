@@ -1,5 +1,6 @@
 # A deliberately vulnerable sample project for langdoctor tests.
 langgraph==1.0.5
+langgraph-sdk==0.4.3
 langgraph-checkpoint-sqlite==2.0.5
 langgraph-checkpoint-postgres==3.1.0
 langchain-core==1.0.5

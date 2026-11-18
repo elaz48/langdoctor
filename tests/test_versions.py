@@ -13,10 +13,12 @@ def _ids(findings):
 def test_vulnerable_project_triggers_expected_advisories():
     findings = check_versions(scan(FIX / "vulnerable_project"))
     got = _ids(findings)
-    # langgraph-checkpoint-sqlite 2.0.5 -> LD101, LD109, LD110, LD118
-    assert {"LD101", "LD109", "LD110", "LD118"} <= got
-    # langgraph-checkpoint-postgres 3.1.0 -> LD119 (same CVE as LD118, other package)
-    assert "LD119" in got
+    # langgraph-checkpoint-sqlite 2.0.5 -> LD101, LD109, LD110, LD118, LD128
+    assert {"LD101", "LD109", "LD110", "LD118", "LD128"} <= got
+    # langgraph-checkpoint-postgres 3.1.0 -> LD119, LD129 (shared CVEs, other package)
+    assert {"LD119", "LD129"} <= got
+    # langgraph-sdk 0.4.3 -> LD130 (v3 streaming paths), LD132 (auth decorators)
+    assert {"LD130", "LD132"} <= got
     # langflow 1.2.0 -> every KEV Langflow advisory
     assert {"LD106", "LD111", "LD120", "LD121", "LD122", "LD123", "LD124"} <= got
     # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113, LD115, LD116, LD117
@@ -90,18 +92,35 @@ def test_aggregate_suppressed_when_specific_langflow_finding_fires():
 
 
 def test_aggregate_fires_when_no_specific_langflow_finding():
-    # 1.10.3 is past every individual Langflow advisory but below the baseline.
+    # 1.12.8 is past every individual Langflow advisory but below the baseline.
     findings = check_versions(scan(FIX / "langflow_baseline_project"))
     assert _ids(findings) == {"LD150"}
 
 
 def test_langflow_baseline_recommends_the_current_secure_line():
-    """Regression: the LD150 baseline was stuck at 1.10.1 while IBM PSIRT
-    published 24 further CVEs on 2026-08-05, all fixed in 1.11.0 and none of
-    them indexed by OSV. A 1.10.2/1.10.3 pin scanned completely clean."""
+    """Regression (twice over): the LD150 baseline drifts whenever IBM PSIRT
+    publishes Langflow CVEs that OSV does not index.
+
+    0.1.4: stuck at 1.10.1 while 24 CVEs fixed in 1.11.0 landed — a 1.10.3 pin
+    scanned clean. 0.1.6: stuck at 1.11.0 while ~99 more (16 of them CVSS >= 9.0)
+    were fixed between 1.11.2 and 1.13.0 — a 1.12.8 pin scanned clean."""
     findings = {f.id: f for f in check_versions(scan(FIX / "langflow_baseline_project"))}
-    assert findings["LD150"].fix == 'pip install "langflow>=1.11.0"'
+    assert findings["LD150"].fix == 'pip install "langflow>=1.13.0"'
     assert findings["LD150"].severity == "high"
+
+
+def test_the_previous_langflow_baseline_is_now_flagged(tmp_path):
+    # 1.11.0 was the "patched" fixture in 0.1.4/0.1.5; it is no longer safe.
+    (tmp_path / "requirements.txt").write_text("langflow==1.11.0\n", encoding="utf-8")
+    assert _ids(check_versions(scan(tmp_path))) == {"LD150"}
+
+
+def test_late_1_12_maintenance_releases_are_still_below_the_baseline(tmp_path):
+    # 1.12.9/1.12.10 shipped after 1.13.0, but branch from release-1.12.8 and
+    # backport only the 1.13.0 -> 1.13.1 delta (langflow PR #16119).
+    (tmp_path / "requirements.txt").write_text("langflow==1.12.10\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert findings["LD150"].fix == 'pip install "langflow>=1.13.0"'
 
 
 def test_langflow_on_the_current_baseline_is_clean():
@@ -158,3 +177,76 @@ def test_community_name_normalization(tmp_path):
     # PEP 503: the underscore spelling has to resolve to the same advisories.
     (tmp_path / "requirements.txt").write_text("langchain_community==0.3.26\n", encoding="utf-8")
     assert {"LD126", "LD127"} <= _ids(check_versions(scan(tmp_path)))
+
+
+# --- 0.1.6: LangGraph store follow-up + langgraph-sdk ----------------------
+
+def test_store_fix_line_names_each_package_and_its_own_version():
+    # CVE-2026-115883 is fixed in sqlite 3.1.2 but postgres 3.1.3, so the two
+    # findings must not share a fix line.
+    findings = {f.id: f for f in check_versions(scan(FIX / "vulnerable_project"))}
+    assert findings["LD128"].cve == findings["LD129"].cve == "CVE-2026-115883"
+    assert findings["LD128"].fix == 'pip install "langgraph-checkpoint-sqlite>=3.1.2"'
+    assert findings["LD129"].fix == 'pip install "langgraph-checkpoint-postgres>=3.1.3"'
+
+
+def test_stores_on_the_ld118_fix_are_still_affected(tmp_path):
+    """Regression: 3.1.1 fixed CVE-2026-71433 (LD118/LD119) and was the clean
+    fixture's pin — but CVE-2026-115883 affects it, so it scanned clean while
+    vulnerable."""
+    (tmp_path / "requirements.txt").write_text(
+        "langgraph-checkpoint-sqlite==3.1.1\nlanggraph-checkpoint-postgres==3.1.1\n",
+        encoding="utf-8",
+    )
+    assert _ids(check_versions(scan(tmp_path))) == {"LD128", "LD129"}
+
+
+def test_suppressing_cve_2026_115883_hits_both_stores():
+    findings = check_versions(scan(FIX / "vulnerable_project"))
+    shared = [f for f in findings if f.matches_id("GHSA-6hmw-9432-67qq")]
+    assert {f.id for f in shared} == {"LD128", "LD129"}
+
+
+def test_remotegraph_on_langgraph_1_2_x_is_flagged(tmp_path):
+    # Regression: the clean fixture pinned langgraph 1.2.7, inside the
+    # CVE-2026-118667 RemoteGraph range, and scanned clean.
+    (tmp_path / "requirements.txt").write_text("langgraph==1.2.7\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert _ids(findings.values()) == {"LD131"}
+    assert findings["LD131"].fix == 'pip install "langgraph>=1.2.14"'
+    assert findings["LD131"].severity == "medium"
+
+
+def test_sdk_v3_streaming_is_flagged_on_the_04_line(tmp_path):
+    (tmp_path / "requirements.txt").write_text("langgraph-sdk==0.4.5\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert _ids(findings.values()) == {"LD130"}  # 0.4.5 is past LD132's 0.4.4 fix
+    assert findings["LD130"].fix == 'pip install "langgraph-sdk>=0.4.6"'
+
+
+def test_suppressing_cve_2026_118667_hits_sdk_and_langgraph(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "langgraph==1.2.7\nlanggraph-sdk==0.4.5\n", encoding="utf-8"
+    )
+    shared = [f for f in check_versions(scan(tmp_path)) if f.matches_id("CVE-2026-118667")]
+    assert {f.id for f in shared} == {"LD130", "LD131"}
+
+
+def test_sdk_auth_decorator_bypass_is_high(tmp_path):
+    (tmp_path / "requirements.txt").write_text("langgraph-sdk==0.4.3\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert findings["LD132"].severity == "high"
+    assert findings["LD132"].fix == 'pip install "langgraph-sdk>=0.4.4"'
+
+
+def test_old_sdk_trips_the_url_construction_cve_on_its_own_package(tmp_path):
+    # CVE-2026-48776 lives in langgraph-sdk; LD112 only matched the langgraph
+    # package, so an old SDK pinned next to a modern langgraph went unflagged.
+    (tmp_path / "requirements.txt").write_text(
+        "langgraph==1.2.14\nlanggraph-sdk==0.3.14\n", encoding="utf-8"
+    )
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert "LD112" not in findings
+    assert findings["LD133"].fix == 'pip install "langgraph-sdk>=0.3.15"'
+    assert "LD132" in findings  # 0.3.14 is also inside 0.1.45 .. 0.4.4
+    assert "LD130" not in findings  # no v3 streaming module on the 0.3.x line

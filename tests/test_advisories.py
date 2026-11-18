@@ -10,11 +10,12 @@ from langdoctor.advisories import (
 def test_db_loads_schema_v2():
     db = load_db()
     assert db.schema_version == 2
-    assert db.updated == "2026-08-27"
+    assert db.updated == "2026-11-18"
     ids = {a.id for a in db.advisories}
     assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
             "LD115", "LD116", "LD117", "LD118", "LD119", "LD120", "LD121",
-            "LD122", "LD123", "LD124", "LD125", "LD126", "LD127", "LD150"} <= ids
+            "LD122", "LD123", "LD124", "LD125", "LD126", "LD127", "LD128",
+            "LD129", "LD130", "LD131", "LD132", "LD133", "LD150"} <= ids
 
 
 def test_normalize_name():
@@ -54,7 +55,8 @@ def test_kev_flags_present():
 def test_every_kev_langflow_cve_is_covered_and_flagged():
     """The six CISA KEV Langflow entries must each map to a KEV-flagged advisory.
 
-    Verified against the KEV catalog on 2026-08-27. An uncovered KEV CVE is the
+    Verified against the KEV catalog on 2026-08-27 and re-checked on 2026-11-18
+    (no new ecosystem entries since). An uncovered KEV CVE is the
     worst kind of miss: langdoctor sorts KEV above everything else, so a gap
     here is invisible exactly where it matters most.
     """
@@ -153,3 +155,84 @@ def test_ld127_has_no_fix_because_upstream_has_not_released_one():
     # An unbounded range means every version is affected, including the newest.
     assert version_affected("0.4.2", ld127.ranges)
     assert version_affected("99.0.0", ld127.ranges)
+
+
+# --- 0.1.6: LangGraph store follow-up + langgraph-sdk ----------------------
+
+def _by():
+    return {a.id: a for a in load_db().advisories}
+
+
+def test_ld128_ld129_share_a_cve_but_not_a_fix_version():
+    # CVE-2026-115883: one CVE, two packages, and — unlike LD118/LD119 — two
+    # different fix versions (sqlite 3.1.2, postgres 3.1.3).
+    by = _by()
+    assert by["LD128"].package == "langgraph-checkpoint-sqlite"
+    assert by["LD129"].package == "langgraph-checkpoint-postgres"
+    assert by["LD128"].cve == by["LD129"].cve == "CVE-2026-115883"
+    assert "GHSA-6hmw-9432-67qq" in by["LD128"].aliases
+    assert "GHSA-6hmw-9432-67qq" in by["LD129"].aliases
+    # 3.1.1 fixed LD118/LD119 but is still affected here
+    assert version_affected("3.1.1", by["LD128"].ranges)
+    assert not version_affected("3.1.2", by["LD128"].ranges)
+    assert version_affected("3.1.2", by["LD129"].ranges)
+    assert not version_affected("3.1.3", by["LD129"].ranges)
+    assert by["LD128"].severity() == by["LD129"].severity() == "medium"  # CNA 6.0
+
+
+def test_ld130_only_affects_the_sdk_04_line():
+    # The v3 stream module does not exist in langgraph-sdk 0.3.x.
+    ld130 = _by()["LD130"]
+    assert ld130.package == "langgraph-sdk"
+    assert ld130.cve == "CVE-2026-118667"
+    assert not version_affected("0.3.15", ld130.ranges)
+    assert version_affected("0.4.0", ld130.ranges)
+    assert version_affected("0.4.5", ld130.ranges)
+    assert not version_affected("0.4.6", ld130.ranges)
+    assert ld130.severity() == "medium"  # CNA 4.3
+
+
+def test_ld131_covers_remotegraph_from_langgraph_1_2_3():
+    ld131 = _by()["LD131"]
+    assert ld131.package == "langgraph"
+    assert ld131.cve == "CVE-2026-118667"
+    assert not version_affected("1.2.2", ld131.ranges)
+    assert version_affected("1.2.3", ld131.ranges)
+    assert version_affected("1.2.13", ld131.ranges)
+    assert not version_affected("1.2.14", ld131.ranges)
+
+
+def test_ld132_auth_decorator_bypass_range():
+    ld132 = _by()["LD132"]
+    assert ld132.package == "langgraph-sdk"
+    assert ld132.cve == "CVE-2026-104873"
+    assert {"GHSA-fvww-7h3r-vfhp", "PYSEC-2026-4240"} <= set(ld132.aliases)
+    assert not version_affected("0.1.44", ld132.ranges)
+    assert version_affected("0.1.45", ld132.ranges)
+    assert version_affected("0.4.3", ld132.ranges)
+    assert not version_affected("0.4.4", ld132.ranges)
+    assert ld132.severity() == "high"  # CNA 7.6 (CVSS 4.0)
+
+
+def test_ld133_puts_cve_2026_48776_on_the_package_the_vendor_names():
+    """GHSA-w39p (vendor) and PYSEC-2026-2575 attribute CVE-2026-48776 to
+    langgraph-sdk; LD112 follows PYSEC-2026-2194, which files it under langgraph.
+    LD112 is a shipped ID and stays put; LD133 covers the SDK itself."""
+    by = _by()
+    ld133 = by["LD133"]
+    assert ld133.package == "langgraph-sdk"
+    assert ld133.cve == by["LD112"].cve == "CVE-2026-48776"
+    assert "PYSEC-2026-2575" in ld133.aliases
+    assert version_affected("0.3.14", ld133.ranges)
+    assert not version_affected("0.3.15", ld133.ranges)
+    assert ld133.severity() == by["LD112"].severity() == "medium"
+
+
+def test_langflow_baseline_is_1_13_0():
+    ld150 = _by()["LD150"]
+    assert ld150.fixed_in == "1.13.0"
+    assert version_affected("1.12.8", ld150.ranges)
+    # 1.12.9/1.12.10 are later maintenance releases, but their backport covers
+    # the 1.13.0 -> 1.13.1 delta, not the fixes IBM attributes to 1.13.0.
+    assert version_affected("1.12.10", ld150.ranges)
+    assert not version_affected("1.13.0", ld150.ranges)

@@ -1,2 +1,2 @@
 # Langflow on the current secure baseline -- no version findings at all.
-langflow==1.11.0
+langflow==1.13.0
