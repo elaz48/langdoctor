@@ -250,3 +250,42 @@ def test_old_sdk_trips_the_url_construction_cve_on_its_own_package(tmp_path):
     assert findings["LD133"].fix == 'pip install "langgraph-sdk>=0.3.15"'
     assert "LD132" in findings  # 0.3.14 is also inside 0.1.45 .. 0.4.4
     assert "LD130" not in findings  # no v3 streaming module on the 0.3.x line
+
+
+def test_specifier_capped_below_the_introduced_bound_is_not_flagged(tmp_path):
+    # LD131 only affects 1.2.3 <= v < 1.2.14. A pin capped below 1.0 can never
+    # resolve into that window, so even a heuristic finding would be a false
+    # positive — while LD102 (introduced 0, fixed 1.0.10) still fires.
+    (tmp_path / "requirements.txt").write_text("langgraph<1.0.0\n", encoding="utf-8")
+    got = _ids(check_versions(scan(tmp_path)))
+    assert "LD102" in got
+    assert "LD131" not in got
+
+
+def test_specifier_inside_an_introduced_window_is_still_heuristic(tmp_path):
+    (tmp_path / "requirements.txt").write_text("langgraph<1.2.10\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert findings["LD131"].heuristic is True
+
+
+def test_specifier_whose_lower_bound_sits_inside_the_window_is_flagged(tmp_path):
+    # >=1.2.5,<1.2.10 excludes the introduced version 1.2.3 itself, yet every
+    # version it admits is affected — it must not slip through.
+    (tmp_path / "requirements.txt").write_text("langgraph>=1.2.5,<1.2.10\n", encoding="utf-8")
+    findings = {f.id: f for f in check_versions(scan(tmp_path))}
+    assert findings["LD131"].heuristic is True
+
+
+def test_specifier_excluding_only_the_introduced_version_is_flagged(tmp_path):
+    # Review finding: `>1.2.3` / `!=1.2.3` exclude the first affected release but
+    # still admit 1.2.4 .. 1.2.13, so the window stays reachable.
+    for spec in ("langgraph>1.2.3,<1.2.14", "langgraph!=1.2.3,<1.2.14"):
+        (tmp_path / "requirements.txt").write_text(spec + "\n", encoding="utf-8")
+        findings = {f.id: f for f in check_versions(scan(tmp_path))}
+        assert findings["LD131"].heuristic is True, spec
+
+
+def test_compatible_release_below_the_window_is_not_flagged(tmp_path):
+    # ~=1.1.0 resolves within 1.1.x only, entirely below LD131's 1.2.3 floor.
+    (tmp_path / "requirements.txt").write_text("langgraph~=1.1.0\n", encoding="utf-8")
+    assert "LD131" not in _ids(check_versions(scan(tmp_path)))

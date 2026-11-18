@@ -10,6 +10,7 @@ pick a patched release.
 from __future__ import annotations
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import InvalidVersion, Version
 
 from ..advisories import Advisory, AdvisoryDB, load_db, matched_range, normalize_name
 from ..finding import Finding
@@ -80,7 +81,43 @@ def _evaluate_specifier(specifier: str, adv: Advisory) -> tuple[bool, str | None
     # If a fixed-or-later version is reachable, a safe install exists -> don't flag.
     if spec.contains(fixed, prereleases=True) or spec.contains(_UNREACHABLE_HIGH, prereleases=True):
         return None
+    if not _reaches_introduced(spec, adv.ranges[0].introduced):
+        return None
     return (True, fixed or adv.fixed_in)
+
+
+def _reaches_introduced(spec: SpecifierSet, introduced: str | None) -> bool:
+    """Can the specifier resolve to a version at or above `introduced`?
+
+    A range that starts above zero (e.g. LD131: 1.2.3 <= v < 1.2.14) is out of
+    reach for a pin capped below it (langgraph<1.0.0). Candidates are the
+    introduced version and every bound the specifier itself names at or above
+    it, each also bumped by one in its last release segment, so `>=1.2.5,<1.2.10`
+    and `>1.2.3` / `!=1.2.3` still count although they exclude 1.2.3 itself.
+    """
+    if introduced in (None, "", "0"):
+        return True
+    try:
+        floor = Version(introduced)
+    except InvalidVersion:
+        return True  # unparseable bound: keep the previous (flagging) behavior
+    bases = [floor]
+    for clause in spec:
+        try:
+            version = Version(clause.version)
+        except InvalidVersion:  # wildcard clauses such as ==1.2.*
+            continue
+        if version >= floor:
+            bases.append(version)
+    candidates = [str(v) for v in bases] + [_bump_last_segment(v) for v in bases]
+    return any(spec.contains(c, prereleases=True) for c in candidates)
+
+
+def _bump_last_segment(version: Version) -> str:
+    """1.2.3 -> 1.2.4: the next release a `>V` or `!=V` clause still admits."""
+    release = (*version.release[:-1], version.release[-1] + 1)
+    epoch = f"{version.epoch}!" if version.epoch else ""
+    return epoch + ".".join(str(part) for part in release)
 
 
 def _fix_line(adv: Advisory, target: str | None) -> str | None:
