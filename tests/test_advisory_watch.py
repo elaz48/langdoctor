@@ -325,3 +325,113 @@ def test_community_advisories_are_not_double_listed_in_the_ignore_file():
     ignored = aw.load_ignore(aw.IGNORE_PATH)
     for cve in ("CVE-2025-2828", "CVE-2025-6984", "CVE-2026-72848"):
         assert cve not in ignored
+
+
+# --- alias-aware delta state (0.1.6) ----------------------------------------
+
+def test_new_pysec_record_for_an_already_alerted_ghsa_is_not_new():
+    """Regression: the 2026-10-19 watch comment was 100% duplicates.
+
+    OSV published PYSEC records for ten Langflow GHSAs alerted the week before.
+    The delta compared only the primary id, so every PYSEC re-alerted even
+    though its aliases named a GHSA already in the state file.
+    """
+    known = {"GHSA-4f6c-2vvp-gw82"}
+    uncovered = [{"id": "PYSEC-2026-4229",
+                  "aliases": ["CVE-2026-105741", "GHSA-4f6c-2vvp-gw82"]}]
+    assert aw.new_advisories(uncovered, known) == []
+
+
+def test_alias_overlap_is_case_insensitive():
+    uncovered = [{"id": "PYSEC-1", "aliases": ["ghsa-abc"]}]
+    assert aw.new_advisories(uncovered, {"GHSA-ABC"}) == []
+
+
+def test_state_ids_include_aliases_so_a_later_ghsa_is_not_new():
+    # The reverse order: a PYSEC alerts first (its aliases name the GHSA), then
+    # the GHSA record appears. GHSA records rarely alias their PYSEC twin, so the
+    # state must remember every identifier, not just the primary id.
+    first_run = [{"id": "PYSEC-2026-1", "aliases": ["CVE-2026-1", "GHSA-aaaa"]}]
+    known = set(aw.advisory_ids(first_run))
+    assert {"PYSEC-2026-1", "CVE-2026-1", "GHSA-aaaa"} <= known
+    second_run = [{"id": "GHSA-aaaa", "aliases": ["CVE-2026-1"]}]
+    assert aw.new_advisories(second_run, known) == []
+
+
+def test_genuinely_new_advisory_still_alerts_with_aliases_present():
+    uncovered = [{"id": "GHSA-new", "aliases": ["CVE-2099-5"]}]
+    assert [u["id"] for u in aw.new_advisories(uncovered, {"GHSA-old"})] == ["GHSA-new"]
+
+
+def test_advisory_ids_tolerates_records_without_aliases():
+    # KEV entries carry no aliases key at all.
+    assert aw.advisory_ids([{"id": "CVE-2099-1"}]) == ["CVE-2099-1"]
+
+
+# --- multi-package advisories in the report (0.1.6) -------------------------
+
+def _multi_pkg_vuln():
+    return {
+        "id": "GHSA-6hmw-9432-67qq",
+        "aliases": ["CVE-2026-115883"],
+        "summary": "Namespace labels containing . reach other namespaces",
+        "affected": [
+            {"package": {"name": "langgraph-checkpoint-postgres"},
+             "ranges": [{"events": [{"introduced": "0"}, {"fixed": "3.1.3"}]}]},
+            {"package": {"name": "langgraph-checkpoint-sqlite"},
+             "ranges": [{"events": [{"introduced": "0"}, {"fixed": "3.1.2"}]}]},
+        ],
+    }
+
+
+def test_uncovered_advisory_lists_every_affected_package():
+    # Regression: GHSA-6hmw was reported as sqlite-only although Postgres is
+    # affected too (with a different fix version), because the record was
+    # attributed to whichever watched package returned it first.
+    osv = {"langgraph-checkpoint-sqlite": [_multi_pkg_vuln()],
+           "langgraph-checkpoint-postgres": [_multi_pkg_vuln()]}
+    [r] = aw.uncovered_advisories(osv, COVERED)
+    assert r["packages"] == ["langgraph-checkpoint-postgres", "langgraph-checkpoint-sqlite"]
+
+
+def test_packages_falls_back_to_the_queried_package():
+    osv = {"langflow": [{"id": "GHSA-x"}]}  # no "affected" block at all
+    [r] = aw.uncovered_advisories(osv, COVERED)
+    assert r["packages"] == ["langflow"]
+
+
+def test_render_issue_names_every_affected_package():
+    osv = {"langgraph-checkpoint-sqlite": [_multi_pkg_vuln()]}
+    body = aw.render_issue(aw.uncovered_advisories(osv, COVERED))
+    assert "langgraph-checkpoint-postgres" in body
+    assert "langgraph-checkpoint-sqlite" in body
+
+
+# --- langgraph-sdk coverage (0.1.6) -----------------------------------------
+
+def test_packages_include_langgraph_sdk():
+    assert "langgraph-sdk" in aw.PACKAGES
+
+
+def test_every_known_langgraph_sdk_advisory_is_covered():
+    """Every advisory OSV listed for langgraph-sdk on 2026-11-18 must be covered,
+    so adding the package to the watch list cannot open a spurious issue."""
+    from langdoctor.advisories import load_db
+
+    covered = aw.covered_identifiers(load_db())
+    assert {
+        "GHSA-3FX2-CQW9-XR3C",   # CVE-2026-118667 -> LD130 / LD131
+        "GHSA-FVWW-7H3R-VFHP",   # CVE-2026-104873 -> LD132
+        "PYSEC-2026-4240",       # its PYSEC twin
+        "GHSA-W39P-VH2G-G8G5",   # CVE-2026-48776 -> LD112 / LD133
+        "PYSEC-2026-2575",       # its langgraph-sdk PYSEC record
+        "GHSA-6HMW-9432-67QQ",   # CVE-2026-115883 -> LD128 / LD129
+    } <= covered
+
+
+def test_malformed_affected_entries_do_not_crash_the_package_listing():
+    # Review finding: a junk `affected` row must not abort the whole OSV report.
+    vuln = {"id": "GHSA-junk", "affected": [None, "x", {"package": "langflow"},
+                                            {"package": {"name": "langflow"}}]}
+    [r] = aw.uncovered_advisories({"langflow": [vuln]}, COVERED)
+    assert r["packages"] == ["langflow"]

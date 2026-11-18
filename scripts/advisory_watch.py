@@ -51,6 +51,7 @@ _STATE_KEV_KEY = "known_uncovered_kev"
 # Packages langdoctor ships advisories for (plus close ecosystem siblings).
 PACKAGES = [
     "langgraph",
+    "langgraph-sdk",
     "langgraph-checkpoint",
     "langgraph-checkpoint-sqlite",
     "langgraph-checkpoint-redis",
@@ -92,12 +93,35 @@ def vuln_identifiers(vuln: dict) -> set[str]:
 
 def _fixed_versions(vuln: dict) -> set[str]:
     fixes: set[str] = set()
-    for affected in vuln.get("affected") or []:
+    for affected in _affected_entries(vuln):
         for rng in affected.get("ranges") or []:
+            if not isinstance(rng, dict):
+                continue
             for event in rng.get("events") or []:
-                if "fixed" in event:
+                if isinstance(event, dict) and "fixed" in event:
                     fixes.add(event["fixed"])
     return fixes
+
+
+def _affected_packages(vuln: dict, queried: str) -> list[str]:
+    """Every package an OSV record names, falling back to the one we queried.
+
+    One GHSA often spans several packages with different fix versions (e.g.
+    GHSA-6hmw: sqlite 3.1.2, postgres 3.1.3); naming only the queried package
+    hides the others from whoever triages the issue.
+    """
+    names = {
+        affected["package"].get("name")
+        for affected in _affected_entries(vuln)
+        if isinstance(affected.get("package"), dict)
+    }
+    return sorted(n for n in names if isinstance(n, str) and n) or [queried]
+
+
+def _affected_entries(vuln: dict) -> list[dict]:
+    """The record's `affected` rows, skipping junk so one bad row cannot abort
+    the whole report (the run would then exit 0 without updating state)."""
+    return [a for a in vuln.get("affected") or [] if isinstance(a, dict)]
 
 
 def uncovered_advisories(osv_by_package: dict, covered: set[str]) -> list[dict]:
@@ -105,6 +129,8 @@ def uncovered_advisories(osv_by_package: dict, covered: set[str]) -> list[dict]:
 
     A vuln is considered covered if ANY of its identifiers (OSV id or any alias)
     matches one we already track — so a CVE we list under its GHSA still counts.
+    `package` is the watched package that returned the record; `packages` is
+    every package the record itself names.
     """
     seen: set[str] = set()
     out: list[dict] = []
@@ -120,6 +146,7 @@ def uncovered_advisories(osv_by_package: dict, covered: set[str]) -> list[dict]:
             out.append(
                 {
                     "package": package,
+                    "packages": _affected_packages(vuln, package),
                     "id": vuln.get("id"),
                     "aliases": sorted(a for a in (vuln.get("aliases") or [])),
                     "summary": (vuln.get("summary") or "").strip(),
@@ -208,14 +235,33 @@ def save_state(path, ids=None, kev_ids=None) -> None:
     )
 
 
+def _identifiers(u: dict) -> set[str]:
+    """Primary id plus aliases of an uncovered entry (KEV entries have no aliases)."""
+    return {x for x in [u.get("id"), *(u.get("aliases") or [])] if x}
+
+
 def advisory_ids(uncovered: list[dict]) -> list[str]:
-    return sorted({u["id"] for u in uncovered if u["id"]})
+    """Every identifier of the uncovered set, for the delta state.
+
+    Aliases are stored too: OSV often publishes a GHSA and its PYSEC twin weeks
+    apart, and a GHSA record rarely aliases its PYSEC — so remembering only the
+    primary id would re-alert the same advisory under its other name.
+    """
+    return sorted(set().union(*(_identifiers(u) for u in uncovered)))
 
 
 def new_advisories(uncovered: list[dict], known: set[str]) -> list[dict]:
-    """Uncovered advisories whose id was not already known last run (the delta)."""
+    """Uncovered advisories not known last run under ANY of their identifiers.
+
+    Matching on the primary id alone re-alerted ten Langflow GHSAs on
+    2026-10-19 when OSV published their PYSEC records.
+    """
     known_upper = {_norm(k) for k in known}
-    return [u for u in uncovered if u["id"] and _norm(u["id"]) not in known_upper]
+    return [
+        u
+        for u in uncovered
+        if u.get("id") and not ({_norm(x) for x in _identifiers(u)} & known_upper)
+    ]
 
 
 def render_issue(uncovered: list[dict], kev: list[dict] | None = None) -> str:
@@ -255,7 +301,8 @@ def render_issue(uncovered: list[dict], kev: list[dict] | None = None) -> str:
             ident = u["id"] or "(no id)"
             alias = f" · aliases: {', '.join(u['aliases'])}" if u["aliases"] else ""
             fixed = f" · fixed in: {', '.join(u['fixed'])}" if u["fixed"] else ""
-            lines.append(f"- **{u['package']}** — `{ident}`{alias}{fixed}")
+            pkgs = ", ".join(f"**{p}**" for p in u.get("packages") or [u["package"]])
+            lines.append(f"- {pkgs} — `{ident}`{alias}{fixed}")
             if u["summary"]:
                 lines.append(f"  - {u['summary']}")
 
