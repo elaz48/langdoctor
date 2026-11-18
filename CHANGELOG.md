@@ -42,6 +42,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing and keeps its previous state baseline.
 - NVD, OSV and KEV prose pasted into the watch issue has its `@mentions`
   neutralised, so an advisory text cannot notify arbitrary GitHub users.
+- Advisory DB date moves to 2026-11-19.
+
+### Deprecated
+- **LD112** (CVE-2026-48776 on `langgraph < 0.3.15`), superseded by **LD133**
+  (the same CVE on `langgraph-sdk < 0.3.15`). LD112 followed PYSEC-2026-2194,
+  which files the CVE under `langgraph` although its own text, the vendor GHSA
+  and the fix release all name `langgraph-sdk`. It compared langgraph versions
+  against an SDK fix number and missed the installs that matter: langgraph
+  0.3.34 pins `langgraph-sdk < 0.2.0` and 0.6.11 pins `< 0.3.0`, so both always
+  resolve a vulnerable SDK, yet neither was flagged. LD112 no longer produces
+  findings; the ID stays in the DB and in `list-checks` (marked deprecated).
+  - When the SDK version is visible — a lockfile (`uv.lock`, `poetry.lock`)
+    records it, or it is pinned directly — LD133 reports every affected
+    install. A bare `requirements.txt` pinning only an old `langgraph` no
+    longer gets this CVE reported: LD112 only caught the `< 0.3.15` slice of
+    that case, and by accident.
+  - Existing suppressions keep working: an `ignore` of `LD112` (or of
+    `PYSEC-2026-2194`) now suppresses LD133, which also lists both among its
+    aliases. Suppressed findings are still counted, never hidden.
+- Advisories support deprecation: `deprecated` (ISO date) and `superseded_by`
+  in `advisories.json`. A deprecated entry never fires and is marked in
+  `list-checks`; its successor inherits its identifiers for suppression; its
+  identifiers still count as covered for the advisory watcher, so the
+  misattributed PYSEC record never alerts; and a deprecated aggregate is not
+  polled for NVD baseline drift.
 
 ## [0.1.6] - 2026-11-18
 

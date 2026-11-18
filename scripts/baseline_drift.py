@@ -252,8 +252,8 @@ def baseline_targets(db) -> tuple[list[tuple[object, str]], list[object]]:
     """(aggregate, NVD keyword) pairs to check, plus aggregates with no keyword."""
     watched, unmapped = [], []
     for adv in db.advisories:
-        if not getattr(adv, "aggregate", False):
-            continue
+        if not getattr(adv, "aggregate", False) or getattr(adv, "deprecated", None):
+            continue  # a deprecated aggregate never fires, so its drift is noise
         keyword = NVD_KEYWORDS.get(adv.package)
         if keyword:
             watched.append((adv, keyword))

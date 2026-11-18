@@ -12,7 +12,14 @@ from __future__ import annotations
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
-from ..advisories import Advisory, AdvisoryDB, load_db, matched_range, normalize_name
+from ..advisories import (
+    Advisory,
+    AdvisoryDB,
+    inherited_identifiers,
+    load_db,
+    matched_range,
+    normalize_name,
+)
 from ..finding import Finding
 
 _UNREACHABLE_HIGH = "9999.0.0"
@@ -25,8 +32,11 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
     for dep in project.dependencies:
         by_name.setdefault(normalize_name(dep.name), []).append(dep)
 
+    inherited = inherited_identifiers(db)
     hits: list[tuple[Advisory, Finding]] = []
     for adv in db.advisories:
+        if adv.deprecated:
+            continue  # kept for its permanent ID; its replacement fires instead
         for dep in by_name.get(normalize_name(adv.package), []):
             evaluated = _evaluate(dep, adv)
             if evaluated is None:
@@ -44,7 +54,9 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
                         line=dep.line,
                         fix=_fix_line(adv, target),
                         cve=adv.cve,
-                        aliases=adv.aliases,
+                        # + the IDs of entries it supersedes, so their
+                        # suppressions keep working (e.g. LD112 -> LD133)
+                        aliases=adv.aliases + inherited.get(adv.id, ()),
                         refs=adv.refs,
                         heuristic=heuristic,
                         exploited_in_the_wild=adv.exploited_in_the_wild,

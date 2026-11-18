@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 from langdoctor.checks.versions import check_versions
@@ -70,14 +71,36 @@ def test_dual_line_fix_targets_matching_line():
     assert findings["LD117"].severity == "high"  # CVSS 8.2, the notable one
 
 
-def test_ld112_only_affects_the_0x_line(tmp_path):
-    # CVE-2026-48776: langgraph SDK URL construction, fixed 0.3.15 (0.x only).
+def test_deprecated_ld112_no_longer_fires(tmp_path):
+    """LD112 compared *langgraph* versions against the *langgraph-sdk* fix
+    (0.3.15) — a PYSEC-2026-2194 misattribution. It is deprecated in favor of
+    LD133, which checks the SDK itself, so it must never produce a finding."""
     (tmp_path / "requirements.txt").write_text("langgraph==0.3.14\n", encoding="utf-8")
+    assert "LD112" not in _ids(check_versions(scan(tmp_path)))
+
+
+def test_ld133_replaces_ld112_on_the_sdk(tmp_path):
+    (tmp_path / "requirements.txt").write_text(
+        "langgraph==0.3.14\nlanggraph-sdk==0.1.66\n", encoding="utf-8"
+    )
     findings = {f.id: f for f in check_versions(scan(tmp_path))}
-    assert "LD112" in findings
-    assert findings["LD112"].severity == "medium"  # CNA 4.2, not the NVD-secondary 9.1
-    assert findings["LD112"].fix == 'pip install "langgraph>=0.3.15"'
-    assert findings["LD112"].heuristic is False
+    assert "LD112" not in findings
+    assert findings["LD133"].severity == "medium"  # CNA 4.2, not the NVD-secondary 9.1
+    assert findings["LD133"].fix == 'pip install "langgraph-sdk>=0.3.15"'
+    assert findings["LD133"].heuristic is False
+
+
+def test_a_deprecated_advisory_never_fires_even_inside_its_range(tmp_path):
+    from langdoctor.advisories import AdvisoryDB, load_db
+
+    db = load_db()
+    ld133 = {a.id: a for a in db.advisories}["LD133"]
+    live = AdvisoryDB(db.schema_version, db.updated, db.buckets, (ld133,))
+    gone = AdvisoryDB(db.schema_version, db.updated, db.buckets,
+                      (replace(ld133, deprecated="2026-11-19"),))
+    (tmp_path / "requirements.txt").write_text("langgraph-sdk==0.3.14\n", encoding="utf-8")
+    assert _ids(check_versions(scan(tmp_path), live)) == {"LD133"}
+    assert check_versions(scan(tmp_path), gone) == []
 
 
 def test_ld112_not_flagged_on_1x(tmp_path):
@@ -289,3 +312,16 @@ def test_compatible_release_below_the_window_is_not_flagged(tmp_path):
     # ~=1.1.0 resolves within 1.1.x only, entirely below LD131's 1.2.3 floor.
     (tmp_path / "requirements.txt").write_text("langgraph~=1.1.0\n", encoding="utf-8")
     assert "LD131" not in _ids(check_versions(scan(tmp_path)))
+
+
+
+def test_an_ignore_of_ld112_carries_over_to_its_successor(tmp_path):
+    """Review finding: a user who suppressed LD112 must not get a surprise,
+    unsuppressed LD133 for the same CVE on upgrade. The deprecated entry's ID
+    and aliases are inherited by LD133 for matching (and shown as aliases)."""
+    (tmp_path / "requirements.txt").write_text("langgraph-sdk==0.3.14\n", encoding="utf-8")
+    ld133 = {f.id: f for f in check_versions(scan(tmp_path))}["LD133"]
+    assert ld133.matches_id("LD112")
+    assert ld133.matches_id("pysec-2026-2194")
+    assert ld133.matches_id("CVE-2026-48776")
+    assert not ld133.matches_id("LD111")

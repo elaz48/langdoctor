@@ -3,6 +3,11 @@
 Advisories are DATA, not code. This module is the only place that knows the
 JSON shape: it parses it into typed objects, derives severity from CVSS, and
 answers version-applicability questions via OSV-style affected_ranges.
+
+IDs are permanent, so a wrong entry is deprecated, never removed: `deprecated`
+(an ISO date) plus `superseded_by` (replacement IDs). A deprecated advisory
+stays in the DB — its CVE and aliases keep suppression and the advisory watcher
+working — but never produces a finding.
 """
 
 from __future__ import annotations
@@ -48,6 +53,8 @@ class Advisory:
     title: str
     detail: str
     refs: tuple[str, ...]
+    deprecated: str | None = None  # date it was deprecated; None = live
+    superseded_by: tuple[str, ...] = ()
 
     def severity(self, buckets: dict[str, float] | None = None) -> str:
         return derive_severity(self.cvss_score, self.severity_override, buckets or DEFAULT_BUCKETS)
@@ -95,7 +102,56 @@ def _parse_advisory(raw: dict) -> Advisory:
         title=raw.get("title", raw["id"]),
         detail=raw.get("detail", ""),
         refs=tuple(raw.get("refs") or ()),
+        deprecated=_deprecated(raw.get("deprecated")),
+        superseded_by=_id_list(raw.get("superseded_by")),
     )
+
+
+_FALSY_STRINGS = {"", "false", "no", "0", "none", "null"}
+
+
+def _deprecated(value) -> str | None:
+    """`"2026-11-19"` -> the date; a bare `true` -> "yes"; absent, false or a
+    falsy spelling ("false", "no", "0") -> None, so a hand edit cannot
+    deprecate an entry by accident."""
+    if value is True:
+        return "yes"
+    if not value or (isinstance(value, str) and value.strip().lower() in _FALSY_STRINGS):
+        return None
+    return str(value)
+
+
+def _id_list(value) -> tuple[str, ...]:
+    """A list of IDs; a single string is one ID, never split into characters."""
+    if isinstance(value, str):
+        value = [value]
+    return tuple(str(v).strip() for v in value or () if str(v).strip())
+
+
+def inherited_identifiers(db: AdvisoryDB) -> dict[str, tuple[str, ...]]:
+    """Successor ID -> the identifiers of the deprecated entries it replaces.
+
+    A finding for the successor also matches these, so an existing suppression
+    of the old ID (or of an alias only the old entry carried) keeps working
+    after the deprecation instead of surfacing a "new" finding for the same
+    vulnerability. Identifiers the successor already has are not repeated.
+    """
+    by_id = {a.id: a for a in db.advisories}
+    inherited: dict[str, list[str]] = {}
+    for old in db.advisories:
+        if not old.deprecated:
+            continue
+        for target in old.superseded_by:
+            successor = by_id.get(target)
+            if successor is None:
+                continue
+            seen = {x.upper() for x in (successor.id, successor.cve or "", *successor.aliases)}
+            seen |= {x.upper() for x in inherited.get(target, [])}
+            for ident in (old.id, old.cve or "", *old.aliases):
+                if ident and ident.upper() not in seen:
+                    inherited.setdefault(target, []).append(ident)
+                    seen.add(ident.upper())
+    return {target: tuple(ids) for target, ids in inherited.items()}
 
 
 def load_db(path: Path | None = None) -> AdvisoryDB:

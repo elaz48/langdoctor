@@ -60,7 +60,12 @@ advisory DB is the product's live surface and its marketing engine (spec §9).
 Every advisory/check has a stable ID `LD###`, categorized by hundreds:
 - `1xx` known vulnerabilities (data-driven), `2xx` checkpointer & state,
   `3xx` graph & runtime config, `4xx` secrets & exposure, `5xx` hygiene.
-- IDs are permanent identifiers — never renumber a shipped ID; deprecate instead.
+- IDs are permanent identifiers — never renumber a shipped ID; deprecate instead:
+  set `deprecated` (ISO date) and `superseded_by` on the entry and keep it in
+  `advisories.json`. It then never fires and `list-checks` marks it; its
+  successor inherits its ID and aliases for matching, so existing `ignore`s keep
+  working; and its identifiers keep the watcher from re-alerting.
+  Example: LD112 → LD133.
 - Users suppress by ID; docs deep-link by ID.
 
 ## False-positive policy

@@ -666,3 +666,14 @@ def test_kev_product_mentions_are_neutralised():
     body = aw.render_issue([], aw.uncovered_kev(
         [_kev("CVE-2099-9", vendor="Langflow @mallory")], COVERED))
     assert "@mallory" not in body
+
+
+def test_deprecated_ld112_still_covers_the_misattributed_pysec_record():
+    # PYSEC-2026-2194 files the SDK CVE under `langgraph`; deprecating LD112
+    # must not turn it into a weekly "uncovered" alert.
+    from langdoctor.advisories import load_db
+
+    covered = aw.covered_identifiers(load_db())
+    osv = {"langgraph": [{"id": "PYSEC-2026-2194",
+                          "aliases": ["CVE-2026-48776", "GHSA-w39p-vh2g-g8g5"]}]}
+    assert aw.uncovered_advisories(osv, covered) == []

@@ -61,7 +61,7 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD109` | Known CVEs | high | SQL injection in the SQLite store implementation |
 | `LD110` | Known CVEs | high | SQL injection via filter key in SqliteStore |
 | `LD111` | Known CVEs | high 🔴KEV | Path traversal → RCE via /api/v2/files upload (Langflow) |
-| `LD112` | Known CVEs | medium | Unsafe URL path construction in the LangGraph SDK |
+| `LD112` | Known CVEs | deprecated | ~~Unsafe URL path construction in the LangGraph SDK~~ → superseded by `LD133` |
 | `LD113` | Known CVEs | high | Template injection via attribute access in prompt templates |
 | `LD114` | Known CVEs | medium | Path traversal and sandbox escape in file-search middleware |
 | `LD115` | Known CVEs | low | SSRF via image_url token counting |
@@ -102,6 +102,12 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 Severities for CVE checks are derived from the CVSS score; `🔴KEV` marks
 [Known-Exploited](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
 vulnerabilities, which are always surfaced first.
+
+IDs are permanent: a check that turns out to be wrong is deprecated, not
+renumbered or removed. It stays listed (marked `deprecated` in
+`langdoctor list-checks`), stops producing findings, and names its replacement —
+`LD112` matched the SDK's CVE against the wrong package and is superseded by
+`LD133`.
 
 A finding can arrive without a fix line. Some advisories have no released fix —
 `LD127` is patched upstream but no `langchain-community` release carries it yet —

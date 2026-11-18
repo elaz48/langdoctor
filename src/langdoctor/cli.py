@@ -118,6 +118,12 @@ def _list_checks() -> int:
     table.add_column("Package / category")
     table.add_column("Title")
     for adv in db.advisories:
+        if adv.deprecated:
+            # IDs are permanent and docs deep-link by ID: keep the row, flag it.
+            successor = ", ".join(adv.superseded_by) or "no replacement"
+            table.add_row(adv.id, "deprecated", adv.package,
+                          f"{adv.title} (deprecated → {successor})", style="dim")
+            continue
         badge = " 🔴KEV" if adv.exploited_in_the_wild else ""
         table.add_row(adv.id, adv.severity(db.buckets), adv.package, adv.title + badge)
     for check in all_checks():

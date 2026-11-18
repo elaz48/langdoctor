@@ -42,13 +42,32 @@ def test_cli_version(capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "langdoctor" in out
-    assert "advisories as of 2026-11-18" in out
+    assert "advisories as of 2026-11-19" in out
 
 
 def test_cli_list_checks(capsys):
     rc = main(["list-checks"])
     assert rc == 0
     assert "LD106" in capsys.readouterr().out
+
+
+def test_cli_list_checks_marks_deprecated_ids(capsys, monkeypatch):
+    # IDs are permanent and docs deep-link by ID, so LD112 stays listed —
+    # flagged, with its replacement, instead of silently vanishing.
+    monkeypatch.setenv("COLUMNS", "250")  # one table row per line, no wrapping
+    assert main(["list-checks"]) == 0
+    row = next(line for line in capsys.readouterr().out.splitlines() if "LD112" in line)
+    assert "deprecated" in row
+    assert "deprecated → LD133" in row
+
+
+def test_cli_ignore_of_a_deprecated_id_suppresses_its_successor(tmp_path, capsys):
+    (tmp_path / "requirements.txt").write_text("langgraph-sdk==0.3.14\n", encoding="utf-8")
+    assert main([str(tmp_path), "--ignore", "LD112", "--format", "json",
+                 "--fail-on", "never"]) == 0
+    doc = json.loads(capsys.readouterr().out)
+    assert "LD133" not in {f["id"] for f in doc["findings"]}
+    assert doc["summary"]["suppressed"] >= 1  # visible, never silently dropped
 
 
 def test_cli_scan_error_returns_2(capsys):

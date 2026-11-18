@@ -364,3 +364,12 @@ def test_no_mentions_keeps_emails_and_neutralises_issue_refs():
     assert "sec@langflow.org" in out
     assert "@alice" not in out and "alice" in out
     assert "#123" not in out and "123" in out
+
+
+
+def test_a_deprecated_aggregate_is_not_polled():
+    # Review finding: it never fires, so NVD drift for it would be noise.
+    agg = _aggregate("1.13.0")
+    gone = SimpleNamespace(**{**vars(agg), "deprecated": "2026-11-19"})
+    watched, unmapped = bd.baseline_targets(SimpleNamespace(advisories=[gone]))
+    assert watched == [] and unmapped == []

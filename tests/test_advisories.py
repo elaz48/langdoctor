@@ -1,3 +1,5 @@
+import pytest
+
 from langdoctor.advisories import (
     DEFAULT_BUCKETS,
     derive_severity,
@@ -10,7 +12,7 @@ from langdoctor.advisories import (
 def test_db_loads_schema_v2():
     db = load_db()
     assert db.schema_version == 2
-    assert db.updated == "2026-11-18"
+    assert db.updated == "2026-11-19"
     ids = {a.id for a in db.advisories}
     assert {"LD101", "LD105", "LD106", "LD111", "LD112", "LD113", "LD114",
             "LD115", "LD116", "LD117", "LD118", "LD119", "LD120", "LD121",
@@ -216,8 +218,8 @@ def test_ld132_auth_decorator_bypass_range():
 
 def test_ld133_puts_cve_2026_48776_on_the_package_the_vendor_names():
     """GHSA-w39p (vendor) and PYSEC-2026-2575 attribute CVE-2026-48776 to
-    langgraph-sdk; LD112 follows PYSEC-2026-2194, which files it under langgraph.
-    LD112 is a shipped ID and stays put; LD133 covers the SDK itself."""
+    langgraph-sdk; LD112 followed PYSEC-2026-2194, which files it under langgraph.
+    LD112 stays in the DB as a deprecated ID; LD133 covers the SDK itself."""
     by = _by()
     ld133 = by["LD133"]
     assert ld133.package == "langgraph-sdk"
@@ -236,3 +238,66 @@ def test_langflow_baseline_is_1_13_0():
     # the 1.13.0 -> 1.13.1 delta, not the fixes IBM attributes to 1.13.0.
     assert version_affected("1.12.10", ld150.ranges)
     assert not version_affected("1.13.0", ld150.ranges)
+
+
+# --- deprecation (LD112 -> LD133) -------------------------------------------
+
+def test_ld112_is_deprecated_in_favor_of_ld133():
+    by = _by()
+    assert by["LD112"].deprecated == "2026-11-19"
+    assert by["LD112"].superseded_by == ("LD133",)
+    # The ID is permanent: it keeps its CVE and aliases, so suppression by ID,
+    # CVE or alias still parses and the watcher still counts it as covered.
+    assert by["LD112"].cve == "CVE-2026-48776"
+    assert "PYSEC-2026-2194" in by["LD112"].aliases
+
+
+def test_live_advisories_are_not_deprecated():
+    by = _by()
+    assert by["LD133"].deprecated is None
+    assert by["LD133"].superseded_by == ()
+
+
+def test_every_superseded_by_target_exists_and_is_live():
+    by = _by()
+    for adv in by.values():
+        for target in adv.superseded_by:
+            assert target and target != adv.id, f"{adv.id} -> bad target {target!r}"
+            assert target in by, f"{adv.id} -> unknown {target}"
+            assert by[target].deprecated is None, f"{adv.id} -> deprecated {target}"
+        if adv.superseded_by:
+            assert adv.deprecated, f"{adv.id} has superseded_by but is not deprecated"
+
+
+def test_deprecated_flag_tolerates_a_bare_boolean():
+    from langdoctor.advisories import _parse_advisory
+
+    raw = {"id": "LD999", "package": "x", "deprecated": True}
+    assert _parse_advisory(raw).deprecated == "yes"
+    assert _parse_advisory({"id": "LD998", "package": "x"}).deprecated is None
+
+
+@pytest.mark.parametrize("value", [False, None, "", "false", "False", "no", "0"])
+def test_deprecated_falsy_spellings_keep_the_entry_live(value):
+    from langdoctor.advisories import _parse_advisory
+
+    assert _parse_advisory({"id": "LD999", "package": "x", "deprecated": value}).deprecated is None
+
+
+def test_superseded_by_accepts_a_single_string():
+    # A hand-edited `"superseded_by": "LD133"` must not split into characters.
+    from langdoctor.advisories import _parse_advisory
+
+    adv = _parse_advisory({"id": "LD999", "package": "x", "deprecated": "2026-11-19",
+                           "superseded_by": "LD133"})
+    assert adv.superseded_by == ("LD133",)
+
+
+def test_successor_inherits_the_deprecated_identifiers():
+    from langdoctor.advisories import inherited_identifiers
+
+    inherited = inherited_identifiers(load_db())
+    assert {"LD112", "PYSEC-2026-2194"} <= set(inherited["LD133"])
+    # nothing the successor already carries is duplicated
+    assert "CVE-2026-48776" not in inherited["LD133"]
+    assert "GHSA-w39p-vh2g-g8g5" not in inherited["LD133"]
