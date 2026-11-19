@@ -114,6 +114,34 @@ A finding can arrive without a fix line. Some advisories have no released fix �
 and langdoctor reports those as affected with no upgrade to recommend rather than
 inventing a version or staying quiet.
 
+## What it reads
+
+- **Python manifests, anywhere in the tree** — `requirements*.txt` (and the
+  files they `-r` include), `pyproject.toml`, `uv.lock`, `poetry.lock`,
+  `pdm.lock`, `Pipfile.lock` and `pylock.toml`. A monorepo is scanned service by
+  service, and every finding names the manifest it came from.
+- **Container images** — a Dockerfile `FROM` or a compose / Kubernetes `image:`
+  line naming an official Langflow image counts as an install of that version:
+  `FROM langflowai/langflow:1.2.0` is reported like `langflow==1.2.0`, with the
+  fix given as an image tag. The same image pulled through a mirror or a
+  private registry (`registry.corp/proxy/langflowai/langflow`) is recognised too.
+- **Python sources** for the code-pattern checks, and `.github/workflows` for
+  `LD502`.
+
+A floating tag (`latest`) names no version, and a `base-*` tag carries the
+`langflow-base` version rather than Langflow's, so for those only the
+configuration checks apply. Not read yet: Helm `repository:` / `tag:` pairs, and
+compose variables whose value exists only in an `.env` file.
+
+Virtualenvs, `node_modules`, build output and caches are skipped; add your own
+directories with `exclude`. Every manifest that is not excluded counts, so a
+`docs/requirements.txt` or a test fixture can produce findings of its own.
+
+langdoctor treats the scanned tree as untrusted input: it never reads a file
+outside the directory it was given (not through a `-r` include, not through a
+symlink), and paths or package names from the repository cannot inject control
+sequences into the console report or HTML into the Markdown one.
+
 ## CI integration
 
 ### GitHub Action

@@ -32,6 +32,10 @@ analysis, frameworks other than LangChain/LangGraph/Langflow.
 - **Checks are data-driven where possible.** Version/CVE checks read
   `advisories.json`; code-pattern checks are Python functions registered via
   `@register_check(...)`.
+- **Dependency sources:** manifests anywhere in the tree (requirements files
+  and their `-r` includes, pyproject, uv/poetry/pdm/Pipfile/pylock lockfiles)
+  plus container images (`containers.py`: Dockerfile `FROM`, YAML `image:`).
+  An image is an install of a package at the version its tag names.
 - Keep dependencies minimal and pure-Python: `rich`, `packaging`,
   `tomli` (only < 3.11; use stdlib `tomllib` on 3.11+), stdlib `ast`.
 
@@ -40,6 +44,12 @@ analysis, frameworks other than LangChain/LangGraph/Langflow.
 Adding a new CVE = edit `advisories.json` + add one vulnerable/clean fixture
 pair + ship a **patch** release. Never hardcode a CVE threshold in Python. The
 advisory DB is the product's live surface and its marketing engine (spec §9).
+
+**Which container image means which package is data too:** the top-level
+`container_images` map in `advisories.json`. Add an image only after checking
+the vendor's release workflow that its tags are versions of that package:
+Langflow's `base-*` tags are `langflow-base` versions, a different line, which
+is why a prefixed tag is never read as a version.
 
 `advisories.json` is **schema_version 2** (spec §5). Key rules:
 - Version applicability via `affected_ranges` (OSV-style `{introduced, fixed}`
@@ -54,6 +64,22 @@ advisory DB is the product's live surface and its marketing engine (spec §9).
 - `aliases` (GHSA/PYSEC/duplicate CVE IDs): lookup, `--ignore`, and inline
   `# langdoctor: ignore=` suppression must match the LD id, primary CVE, OR any
   alias. The engine must tolerate unknown fields (forward compatibility).
+
+## The scanned tree is untrusted input
+
+langdoctor runs in CI on fork pull requests, so every file name and file body
+is attacker-chosen. Rules that keep the gate standing:
+- **Never read outside the scan root** — not via `-r` includes, not via
+  symlinks (`scanner._inside_project`).
+- **Parsers are total:** any TOML/JSON shape in, a list out — check types at
+  each level instead of wrapping a parser in a catch-all, which would hide a
+  real bug and silently drop a manifest (`test_manifest_parsers_accept_any_shape_of_data`).
+- **Line patterns must be linear.** No unbounded group that can rescan to the
+  end of the line; `containers.py` also skips lines over 4 KB. Time a new regex
+  on a 100k-character worst case before shipping it.
+- **Repository-derived text is sanitised at the output layer:** `printable()`
+  for the console, `_escape()` for Markdown; JSON and SARIF are escaped by
+  `json.dumps`.
 
 ## Check-ID conventions
 

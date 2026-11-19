@@ -6,6 +6,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Container images are a dependency source.** A Dockerfile `FROM` or a
+  compose / Kubernetes `image:` line that names an official Langflow image
+  (`langflowai/langflow`, `-backend`, `-ep`, `-all`, `-nightly`, and their
+  `ghcr.io/langflow-ai/` mirrors) counts as an install of the version in its
+  tag. A project that only runs `langflowai/langflow:1.2.0` used to scan "all
+  clear"; it now reports the seven KEV-listed Langflow CVEs on the image line,
+  with the fix given as an image tag. `ARG` defaults and `${VAR:-default}` are
+  resolved; `latest` and `base-*` tags name no Langflow version and yield no
+  version finding (`base-*` is the `langflow-base` version line — verified
+  against Langflow's release workflow). The same image behind a mirror or a
+  private registry is matched by its `org/name`. Which image means which
+  package is data: `container_images` in `advisories.json`.
+- **Manifests are found anywhere in the tree**, not only at the project root:
+  `requirements*.txt`, `*requirements.txt`, `requirements/*.txt`,
+  `pyproject.toml` and lockfiles in any subdirectory, so a monorepo is scanned
+  service by service. `-r` / `--requirement` includes are followed, but never
+  out of the scanned directory.
+- **`pdm.lock`, `Pipfile.lock` and `pylock.toml` (PEP 751) are parsed.** LD501
+  already accepted the first two as lockfiles while the scanner could not read
+  the versions in them.
+
+### Security
+Hardening for scans of repositories you do not trust (fork pull requests,
+fresh clones). None of this was exploitable for more than a misleading or
+stalled scan.
+- **A symlink that points out of the scanned directory is no longer read.** A
+  `requirements.txt` linked to a file elsewhere on the machine had its lines
+  quoted in the LD501 finding.
+- **Control characters from the repository are stripped from the console
+  report, and `<` is escaped in the Markdown one.** A directory or package name
+  could carry terminal escape sequences or an HTML tag into the output.
+- **A malformed manifest no longer aborts the scan.** `pyproject.toml` with
+  unexpected types, a NUL byte or a symlink loop in a `-r` include, an include
+  chain of any length, and absurdly nested JSON/TOML are all read as far as
+  they make sense instead of ending the run with exit code 2.
+
+### Changed
+- **Scanning subdirectories can surface findings an upgrade did not have
+  before** — an old pin in a nested service, for instance. Directories that
+  are vulnerable on purpose belong in `exclude`.
+- **LD501 is judged per manifest directory** and names the manifest: a lockfile
+  covers its own directory and everything below it (one root `uv.lock` covers a
+  workspace), and a directory without one gets its own finding.
+- **LD150 is suppressed per install, not per package:** a second service that
+  only trails the Langflow baseline keeps its finding even when another
+  service has specific Langflow CVEs.
+- **LD403 points at the manifest or image line Langflow comes from**, so it has
+  a location in SARIF and can be suppressed inline there.
+
 ## [0.1.8] - 2026-11-20
 
 Fixes only, no advisory data changes. The GitHub Action the README documented
