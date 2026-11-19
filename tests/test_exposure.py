@@ -83,3 +83,53 @@ def test_ld403_clean_when_disabled_in_compose(tmp_path):
 def test_ld403_no_finding_without_langflow(tmp_path):
     project = _write(tmp_path, {"requirements.txt": "langgraph==1.2.7\n"})
     assert langflow_autologin(project) == []
+
+
+def test_ld403_fires_for_a_langflow_container_image(tmp_path):
+    project = _write(tmp_path, {
+        "docker-compose.yml": "services:\n  lf:\n    image: langflowai/langflow:1.13.3\n",
+    })
+    assert [f.id for f in langflow_autologin(project)] == ["LD403"]
+
+
+def test_ld403_clean_for_an_image_with_auto_login_disabled(tmp_path):
+    project = _write(tmp_path, {
+        "docker-compose.yml": (
+            "services:\n"
+            "  lf:\n"
+            "    image: langflowai/langflow:1.13.3\n"
+            "    environment:\n"
+            "      - LANGFLOW_AUTO_LOGIN=false\n"
+        ),
+    })
+    assert langflow_autologin(project) == []
+
+
+def test_ld403_points_at_where_langflow_comes_from(tmp_path):
+    project = _write(tmp_path, {
+        "deploy/docker-compose.yml": "services:\n  lf:\n    image: langflowai/langflow:1.13.3\n",
+    })
+    finding = langflow_autologin(project)[0]
+    assert (finding.file, finding.line) == ("deploy/docker-compose.yml", 3)
+
+
+def test_ld403_has_no_location_when_langflow_is_only_imported(tmp_path):
+    project = _write(tmp_path, {"flow.py": "import langflow\n"})
+    finding = langflow_autologin(project)[0]
+    assert (finding.file, finding.line) == (None, None)
+
+
+def test_ld403_prefers_the_image_then_the_shallowest_manifest(tmp_path):
+    project = _write(tmp_path, {
+        "docs/requirements.txt": "langflow==1.13.3\n",
+        "deploy/prod/docker-compose.yml": (
+            "services:\n  lf:\n    image: langflowai/langflow:1.13.3\n"
+        ),
+    })
+    assert langflow_autologin(project)[0].file == "deploy/prod/docker-compose.yml"
+
+    project = _write(tmp_path / "second", {
+        "a/b/requirements.txt": "langflow==1.13.3\n",
+        "requirements.txt": "langflow==1.13.3\n",
+    })
+    assert langflow_autologin(project)[0].file == "requirements.txt"

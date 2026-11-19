@@ -117,3 +117,18 @@ def test_cli_config_ignore(tmp_path, capsys):
     doc = json.loads(capsys.readouterr().out)
     ids = {f["id"] for f in doc["findings"]}
     assert not ({"LD106", "LD111", "LD403"} & ids)
+
+
+def test_cli_reports_a_vulnerable_langflow_image_and_a_nested_manifest(tmp_path, capsys):
+    (tmp_path / "Dockerfile").write_text("FROM langflowai/langflow:1.2.0\n", encoding="utf-8")
+    nested = tmp_path / "services" / "agent"
+    nested.mkdir(parents=True)
+    (nested / "requirements.txt").write_text("langgraph==1.0.5\n", encoding="utf-8")
+
+    rc = main([str(tmp_path), "--format", "json"])
+
+    findings = json.loads(capsys.readouterr().out)["findings"]
+    assert rc == 1
+    assert {f["file"] for f in findings if f["id"] in ("LD106", "LD102")} == {
+        "Dockerfile", "services/agent/requirements.txt",
+    }

@@ -66,6 +66,8 @@ class AdvisoryDB:
     updated: str
     buckets: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_BUCKETS))
     advisories: tuple[Advisory, ...] = ()
+    # image repository -> the package its release tags are versions of
+    container_images: dict[str, str] = field(default_factory=dict)
 
 
 def derive_severity(
@@ -168,7 +170,15 @@ def _load_db_cached(path_str: str) -> AdvisoryDB:
         updated=data.get("updated", "unknown"),
         buckets=buckets,
         advisories=advisories,
+        container_images=_container_images(data.get("container_images")),
     )
+
+
+def _container_images(raw) -> dict[str, str]:
+    """`{"langflowai/langflow": "langflow"}`; absent or malformed -> empty."""
+    if not isinstance(raw, dict):
+        return {}
+    return {str(image).lower(): str(package) for image, package in raw.items() if package}
 
 
 def _to_version(value: str) -> Version | None:

@@ -87,3 +87,27 @@ def test_ld502_flags_every_form_of_a_real_uses_key(tmp_path):
     })
     findings = unpinned_github_actions(project)
     assert [f.line for f in findings] == [4, 6, 7, 9]
+
+
+def test_ld501_judges_each_manifest_directory_by_its_own_lockfile(tmp_path):
+    project = _write(tmp_path, {
+        "locked/pyproject.toml": '[project]\ndependencies = ["langgraph>=1.0"]\n',
+        "locked/uv.lock": '[[package]]\nname = "langgraph"\nversion = "1.2.7"\n',
+        "loose/requirements.txt": "langgraph>=1.0\nrich\n",
+    })
+    findings = unpinned_dependencies(project)
+    assert [(f.id, f.file) for f in findings] == [("LD501", "loose/requirements.txt")]
+    assert "loose/" in findings[0].detail
+
+
+def test_ld501_root_lockfile_covers_workspace_members(tmp_path):
+    project = _write(tmp_path, {
+        "uv.lock": '[[package]]\nname = "langgraph"\nversion = "1.2.7"\n',
+        "packages/agent/pyproject.toml": '[project]\ndependencies = ["langgraph>=1.0"]\n',
+    })
+    assert unpinned_dependencies(project) == []
+
+
+def test_ld501_is_about_python_dependencies_not_container_images(tmp_path):
+    project = _write(tmp_path, {"Dockerfile": "FROM langflowai/langflow:latest\n"})
+    assert unpinned_dependencies(project) == []

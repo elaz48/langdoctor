@@ -325,3 +325,55 @@ def test_an_ignore_of_ld112_carries_over_to_its_successor(tmp_path):
     assert ld133.matches_id("pysec-2026-2194")
     assert ld133.matches_id("CVE-2026-48776")
     assert not ld133.matches_id("LD111")
+
+
+def _write_tree(root, files):
+    for name, content in files.items():
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    return scan(root)
+
+
+def test_image_findings_point_at_the_image_line_and_recommend_an_image(tmp_path):
+    project = _write_tree(tmp_path, {
+        "docker-compose.yml": "services:\n  lf:\n    image: langflowai/langflow:1.2.0\n",
+    })
+    findings = {f.id: f for f in check_versions(project)}
+    assert {"LD106", "LD111", "LD120", "LD121", "LD122", "LD123", "LD124"} <= set(findings)
+    assert (findings["LD106"].file, findings["LD106"].line) == ("docker-compose.yml", 3)
+    assert findings["LD106"].fix == "Use langflowai/langflow:1.3.0 or newer"
+    assert findings["LD106"].heuristic is False
+
+
+def test_floating_and_base_image_tags_produce_no_version_finding(tmp_path):
+    project = _write_tree(tmp_path, {
+        "Dockerfile": "FROM langflowai/langflow:latest\n",
+        "base.Dockerfile": "FROM langflowai/langflow:base-0.11.6\n",
+    })
+    assert check_versions(project) == []
+
+
+def test_findings_name_the_nested_manifest_they_come_from(tmp_path):
+    project = _write_tree(tmp_path, {
+        "services/agent/requirements.txt": "# deps\nlanggraph==1.0.5\n",
+    })
+    findings = {f.id: f for f in check_versions(project)}
+    assert (findings["LD102"].file, findings["LD102"].line) == (
+        "services/agent/requirements.txt", 2,
+    )
+
+
+def test_aggregate_is_judged_per_install_not_per_package(tmp_path):
+    # One service has specific Langflow findings; that must not swallow the
+    # baseline finding of another service that has nothing else.
+    project = _write_tree(tmp_path, {
+        "a/requirements.txt": "langflow==1.2.0\n",
+        "b/requirements.txt": "langflow==1.12.10\n",
+    })
+    by_file: dict[str, set[str]] = {}
+    for finding in check_versions(project):
+        by_file.setdefault(finding.file, set()).add(finding.id)
+    assert by_file["b/requirements.txt"] == {"LD150"}
+    assert "LD106" in by_file["a/requirements.txt"]
+    assert "LD150" not in by_file["a/requirements.txt"]

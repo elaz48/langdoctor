@@ -301,3 +301,18 @@ def test_successor_inherits_the_deprecated_identifiers():
     # nothing the successor already carries is duplicated
     assert "CVE-2026-48776" not in inherited["LD133"]
     assert "GHSA-w39p-vh2g-g8g5" not in inherited["LD133"]
+
+
+def test_db_maps_langflow_container_images_to_the_package():
+    images = load_db().container_images
+    assert images["langflowai/langflow"] == "langflow"
+    assert images["langflowai/langflow-backend"] == "langflow"
+    assert images["ghcr.io/langflow-ai/langflow"] == "langflow"
+    # the frontend image is static files: no Python package to be vulnerable
+    assert "langflowai/langflow-frontend" not in images
+
+
+def test_db_without_container_images_still_loads(tmp_path):
+    path = tmp_path / "db.json"
+    path.write_text('{"schema_version": 2, "updated": "x", "advisories": []}', encoding="utf-8")
+    assert load_db(path).container_images == {}

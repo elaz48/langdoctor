@@ -33,7 +33,7 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
         by_name.setdefault(normalize_name(dep.name), []).append(dep)
 
     inherited = inherited_identifiers(db)
-    hits: list[tuple[Advisory, Finding]] = []
+    hits: list[tuple[Advisory, object, Finding]] = []
     for adv in db.advisories:
         if adv.deprecated:
             continue  # kept for its permanent ID; its replacement fires instead
@@ -45,6 +45,7 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
             hits.append(
                 (
                     adv,
+                    dep,
                     Finding(
                         id=adv.id,
                         severity=adv.severity(db.buckets),
@@ -52,7 +53,7 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
                         detail=adv.detail,
                         file=dep.source,
                         line=dep.line,
-                        fix=_fix_line(adv, target),
+                        fix=_fix_line(adv, target, dep),
                         cve=adv.cve,
                         # + the IDs of entries it supersedes, so their
                         # suppressions keep working (e.g. LD112 -> LD133)
@@ -132,22 +133,29 @@ def _bump_last_segment(version: Version) -> str:
     return epoch + ".".join(str(part) for part in release)
 
 
-def _fix_line(adv: Advisory, target: str | None) -> str | None:
+def _fix_line(adv: Advisory, target: str | None, dep) -> str | None:
     target = target or adv.fixed_in
     if not target:
         return None
+    image = getattr(dep, "image", None)
+    if image:  # the install is a container image: pip is not how it gets fixed
+        return f"Use {image}:{target} or newer"
     return f'pip install "{adv.package}>={target}"'
 
 
-def _apply_aggregate_suppression(hits: list[tuple[Advisory, Finding]]) -> list[Finding]:
+def _apply_aggregate_suppression(hits: list[tuple[Advisory, object, Finding]]) -> list[Finding]:
     """Drop an aggregate/catch-all finding when a specific finding already fired
-    for the same package install (avoids double-counting — e.g. LD150 vs LD106)."""
-    specific_packages = {
-        normalize_name(adv.package) for adv, _ in hits if not adv.aggregate
-    }
-    result = []
-    for adv, finding in hits:
-        if adv.aggregate and normalize_name(adv.package) in specific_packages:
-            continue
-        result.append(finding)
-    return result
+    for the same install (avoids double-counting — e.g. LD150 vs LD106).
+
+    "The same install" is one dependency entry, not the package name: a second
+    service in a monorepo that only trails the baseline keeps its own LD150.
+    """
+    specific = {_install_key(dep) for adv, dep, _ in hits if not adv.aggregate}
+    return [
+        finding for adv, dep, finding in hits
+        if not (adv.aggregate and _install_key(dep) in specific)
+    ]
+
+
+def _install_key(dep) -> tuple:
+    return (normalize_name(dep.name), dep.source, dep.line)

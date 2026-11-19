@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import re
 
+from ..advisories import normalize_name
 from ..analysis import find_calls, import_entries, load_sources, project_uses, read_project_file
 from ..finding import Finding
 from . import register_check
@@ -69,8 +70,17 @@ def langflow_autologin(project) -> list[Finding]:
         return []
     if _autologin_disabled(project):
         return []
+    # Point at where Langflow comes from, when there is such a place: the image
+    # that deploys it if any, else the manifest nearest the project root.
+    source = min(
+        (d for d in project.dependencies if normalize_name(d.name).startswith("langflow")),
+        key=lambda d: (not getattr(d, "image", None), d.source.count("/"), d.source, d.line or 0),
+        default=None,
+    )
     return [Finding(
         id="LD403", severity="critical",
+        file=source.source if source else None,
+        line=source.line if source else None,
         title="Langflow auto-login not explicitly disabled",
         detail=(
             "Langflow enables unauthenticated auto-login by default — the actively exploited "

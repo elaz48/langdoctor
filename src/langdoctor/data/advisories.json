@@ -2,6 +2,17 @@
   "schema_version": 2,
   "updated": "2026-11-19",
   "severity_buckets": { "critical": 9.0, "high": 7.0, "medium": 4.0, "low": 0.1 },
+  "container_images": {
+    "langflowai/langflow": "langflow",
+    "langflowai/langflow-nightly": "langflow",
+    "langflowai/langflow-backend": "langflow",
+    "langflowai/langflow-ep": "langflow",
+    "langflowai/langflow-all": "langflow",
+    "ghcr.io/langflow-ai/langflow": "langflow",
+    "ghcr.io/langflow-ai/langflow-backend": "langflow",
+    "ghcr.io/langflow-ai/langflow-ep": "langflow",
+    "ghcr.io/langflow-ai/langflow-all": "langflow"
+  },
   "advisories": [
     {
       "id": "LD101",
