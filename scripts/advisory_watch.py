@@ -84,6 +84,10 @@ PACKAGES = [
     "langchain",
     "langchain-community",
     "langchain-classic",
+    # Partner packages, in scope since advisories already tracked for another
+    # package turned out to live in them (LD134/LD136, LD135).
+    "langchain-openai",
+    "langchain-anthropic",
     "langflow",
     "langflow-base",
 ]

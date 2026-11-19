@@ -103,6 +103,9 @@ is attacker-chosen. Rules that keep the gate standing:
   file's calls, imports and attribute nodes in one `ast.walk`; use
   `find_calls` / `import_nodes` / `attribute_nodes` rather than walking the
   tree again in a new check.
+- **Fail closed.** A check that raises is recorded in `ScanResult.errors`, the
+  other checks still run, and the CLI exits 2. Never go back to swallowing a
+  check's exception: a silent drop reads as a clean scan.
 - **A file that cannot be parsed is unread, not fatal:** catch `SyntaxError`,
   `ValueError`, `RecursionError` AND `MemoryError` around `ast.parse` /
   `compile` / `json.loads` of repository content. An uncaught one is swallowed
@@ -151,7 +154,10 @@ against `advisories.json` and alerts on the delta. It also checks NVD for
 affecting a version at/above LD150's baseline with no LD entry of its own. IBM
 PSIRT's Langflow CVEs never reach OSV, so this is the only signal for them. A new
 aggregate advisory needs its NVD keyword in `baseline_drift.NVD_KEYWORDS` (the
-watcher warns otherwise). `scripts/watch-ignore.json` lists advisories that are
+watcher warns otherwise). `PACKAGES` in the watcher includes the partner packages
+`langchain-openai` and `langchain-anthropic`: an advisory filed under a core
+package can live in a partner package (LD115 → LD134), so read where the fix
+commit lands before choosing the package. `scripts/watch-ignore.json` lists advisories that are
 **intentionally out of scope** (pre-2025 historical langchain/langchain-core CVEs
 and code paths we don't model) — do NOT "clean it up" or add planned-coverage
 items (e.g. the Langflow long tail) to it; those belong in `.watch-state.json`.

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated": "2026-11-19",
+  "updated": "2026-11-20",
   "severity_buckets": { "critical": 9.0, "high": 7.0, "medium": 4.0, "low": 0.1 },
   "container_images": {
     "langflowai/langflow": "langflow",
@@ -233,7 +233,7 @@
       "severity_override": null,
       "exploited_in_the_wild": false,
       "title": "Path traversal and sandbox escape in file-search middleware and loaders",
-      "detail": "The file-search agent middleware and the prompt and chain/agent configuration loaders resolve user-influenced paths without containment, permitting path traversal and sandbox escape to read files outside the intended root. Local vector, high attack complexity, confidentiality impact. The 1.3.9 fix is to the middleware, which exists only on the 1.x line; the configuration loaders the advisory also names ship in the 0.x wheels (langchain/chains/loading.py), which is why 0.x pins are in range although the only patched version is 1.3.9. The same advisory covers path-prefix checks in langchain-anthropic (fixed in 1.4.6), which this database does not track.",
+      "detail": "The file-search agent middleware and the prompt and chain/agent configuration loaders resolve user-influenced paths without containment, permitting path traversal and sandbox escape to read files outside the intended root. Local vector, high attack complexity, confidentiality impact. The 1.3.9 fix is to the middleware, which exists only on the 1.x line; the configuration loaders the advisory also names ship in the 0.x wheels (langchain/chains/loading.py), which is why 0.x pins are in range although the only patched version is 1.3.9. The same advisory covers path-prefix checks in langchain-anthropic (fixed in 1.4.6): see LD135.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-55443", "https://github.com/advisories/GHSA-gr75-jv2w-4656"]
     },
     {
@@ -558,8 +558,38 @@
       "severity_override": null,
       "exploited_in_the_wild": false,
       "title": "SSRF via image_url token counting in ChatOpenAI (langchain-openai)",
-      "detail": "ChatOpenAI.get_num_tokens_from_messages fetches image_url contents while counting tokens, so a crafted message URL can drive server-side requests to attacker-chosen hosts. Low severity (availability-only impact, high attack complexity). The vulnerable code is langchain_openai/chat_models/base.py; the vendor advisory says it is patched in langchain-openai 1.1.9, which requires langchain-core 1.2.11 for the new SSRF check. Upgrading langchain-core alone changes nothing, because langchain-openai 1.1.8 accepts it too. Same CVE as LD115, which followed the GHSA/PYSEC package attribution to langchain-core. Verified 2026-11-19 against the advisory text, the fix commit and the PyPI metadata of langchain-openai 1.1.8 and 1.1.9.",
+      "detail": "ChatOpenAI.get_num_tokens_from_messages fetches image_url contents while counting tokens, so a crafted message URL can drive server-side requests to attacker-chosen hosts. Low severity (availability-only impact, high attack complexity). The vulnerable code is langchain_openai/chat_models/base.py; the vendor advisory says it is patched in langchain-openai 1.1.9, which requires langchain-core 1.2.11 for the new SSRF check. Upgrading langchain-core alone changes nothing, because langchain-openai 1.1.8 accepts it too. Same CVE as LD115, which followed the GHSA/PYSEC package attribution to langchain-core. Verified 2026-11-19 against the advisory text, the fix commit and the PyPI metadata of langchain-openai 1.1.8 and 1.1.9. The check added in 1.1.9 could itself be bypassed until 1.1.14: see LD136.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-26013", "https://github.com/advisories/GHSA-2g6r-c272-w58r", "https://github.com/langchain-ai/langchain/commit/2b4b1dc29a833d4053deba4c2b77a3848c834565"]
+    },
+    {
+      "id": "LD135",
+      "package": "langchain-anthropic",
+      "cve": "CVE-2026-55443",
+      "aliases": ["GHSA-gr75-jv2w-4656", "PYSEC-2026-2556"],
+      "affected_ranges": [{ "introduced": "1.0.0", "fixed": "1.4.6" }],
+      "fixed_in": "1.4.6",
+      "cvss_score": 5.1,
+      "cvss_vector": "CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "severity_override": null,
+      "exploited_in_the_wild": false,
+      "title": "Path-prefix authorization bypass in the Anthropic tools middleware (langchain-anthropic)",
+      "detail": "The Anthropic tools middleware checks a requested path against its allowed prefixes as plain strings, without a path-segment boundary, so a sibling path that merely shares the prefix is accepted and access reaches beyond the intended subtree. Same advisory and CVE as LD114, which covers the langchain package; tracked separately so the fix line names the package actually installed. The module it concerns (langchain_anthropic/middleware/anthropic_tools.py) first ships in 1.0.0 — the 0.3.22 wheel has no middleware — so earlier releases are out of range although GHSA gives '<= 1.4.5'. Verified 2026-11-20 against the advisory text, the fix commit and the PyPI wheels.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-55443", "https://github.com/advisories/GHSA-gr75-jv2w-4656", "https://github.com/langchain-ai/langchain/commit/dcaf7795a3e6590af55c3ff7bda6add6355e9ea6"]
+    },
+    {
+      "id": "LD136",
+      "package": "langchain-openai",
+      "cve": "CVE-2026-41488",
+      "aliases": ["GHSA-r7w7-9xr2-qq2r", "PYSEC-2026-76"],
+      "affected_ranges": [{ "introduced": "0", "fixed": "1.1.14" }],
+      "fixed_in": "1.1.14",
+      "cvss_score": 3.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N",
+      "severity_override": null,
+      "exploited_in_the_wild": false,
+      "title": "Image-URL SSRF check bypassable by DNS rebinding (langchain-openai)",
+      "detail": "The SSRF check that langchain-openai 1.1.9 added to image token counting (the fix for LD134) validated a URL and then fetched it in a separate network operation with its own DNS resolution. An attacker-controlled hostname could resolve to a public address for the check and to a private or localhost address for the fetch. Impact is limited to blind probing: the response is only handed to an image parser and never returned. Fixed in 1.1.14 with a transport that resolves once and pins the connection (requires langchain-core 1.2.31). CVSS 3.1 from the CNA, as recorded by NVD. Verified 2026-11-20 against GHSA, NVD and OSV.",
+      "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-41488", "https://github.com/advisories/GHSA-r7w7-9xr2-qq2r"]
     },
     {
       "id": "LD150",

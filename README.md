@@ -84,6 +84,8 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD132` | Known CVEs | high | Custom-auth decorators ignore `actions=` → authz bypass (langgraph-sdk) |
 | `LD133` | Known CVEs | medium | Unsafe URL path construction in the LangGraph SDK (langgraph-sdk) |
 | `LD134` | Known CVEs | low | SSRF via image_url token counting in ChatOpenAI (langchain-openai) |
+| `LD135` | Known CVEs | medium | Path-prefix authorization bypass in the Anthropic tools middleware (langchain-anthropic) |
+| `LD136` | Known CVEs | low | Image-URL SSRF check bypassable by DNS rebinding (langchain-openai) |
 | `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.13.0) |
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
@@ -158,7 +160,7 @@ This is a statement about imports, not a verdict:
   and known subclasses (`DocusaurusLoader` for `SitemapLoader`).
 - **It does not see** dynamic imports, or a library that reaches the vulnerable
   code on your behalf.
-- **Most advisories make no claim, on purpose.** 10 of the 33 list entry points
+- **Most advisories make no claim, on purpose.** 10 of the 35 list entry points
   today. The others are reached through defaults — the serializer every
   checkpointer uses, `astream_log()` on any runnable, a store the hosting
   platform creates for you — so no import list would be complete, and a wrong
@@ -302,7 +304,9 @@ disappears silently.
 - **json** — machine-readable, with a per-severity summary.
 
 Exit codes: `0` clean (or below `--fail-on`), `1` findings at/above threshold,
-`2` scan error. Heuristic checks never affect the exit code unless `--strict`.
+`2` scan error — including a check that crashed, because a scan that lost a
+check is incomplete and must not pass for a clean one. An incomplete scan
+writes no SARIF: GitHub would read the missing findings as fixed alerts. Heuristic checks never affect the exit code unless `--strict`.
 
 ## What langdoctor is NOT
 

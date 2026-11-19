@@ -33,11 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`RemoteGraph`), LD132 (`Auth`). Legacy re-export paths
     (`langchain.document_loaders`, `langchain_classic.document_loaders`) are
     included.
-  - The other 15 library advisories make no claim, deliberately, because an
+  - Another 16 library advisories make no claim, deliberately, because an
     import list would be incomplete: the vulnerable code is the default
     serializer of every checkpointer (LD102, LD103, LD108), runs inside
     `astream_log()` / `RunnableWithMessageHistory` / template handling on any
-    runnable (LD105, LD113, LD116, LD117), is a method (LD130, LD133, LD134),
+    runnable (LD105, LD113, LD116, LD117), is a method (LD130, LD133, LD134,
+    LD136),
     is created by the hosting platform (LD119, LD129), or has entry points the
     advisory does not name (LD104's `.save()`, LD114's loaders, LD125's
     request tools).
@@ -92,6 +93,21 @@ stalled scan.
   chain of any length, and absurdly nested JSON/TOML are all read as far as
   they make sense instead of ending the run with exit code 2.
 
+### Advisories
+- **LD135** — `langchain-anthropic` 1.0.0–1.4.5, CVE-2026-55443: path-prefix
+  authorization bypass in the Anthropic tools middleware. It is the
+  `langchain-anthropic` half of the advisory LD114 already tracks for
+  `langchain`. The middleware first ships in 1.0.0 (absent from the 0.3.22
+  wheel), so the range starts there although GHSA gives `<= 1.4.5`. Its entry
+  points for reachability have not been researched yet, so it makes no claim.
+- **LD136** — `langchain-openai` < 1.1.14, CVE-2026-41488: the SSRF check that
+  1.1.9 added to image token counting (LD134's fix) could be bypassed by DNS
+  rebinding. Low severity; CVSS 3.1 from GHSA and NVD.
+- `langchain-openai` and `langchain-anthropic` are now watched by the weekly
+  advisory watcher. Both came into scope through advisories that were already
+  tracked for another package; OSV lists nothing else for either today.
+- Advisory DB date moves to 2026-11-20.
+
 ### Deprecated
 - **LD115** (CVE-2026-26013 on `langchain-core < 1.2.11`), superseded by
   **LD134** (the same CVE on `langchain-openai < 1.1.9`). GHSA and PYSEC file
@@ -123,6 +139,13 @@ stalled scan.
   and the Python tokenizer do.
 
 ### Changed
+- **A check that crashes fails the run.** One check raising an exception used
+  to be dropped without a word, so input that crashed a check produced the
+  same output as a clean project. The other checks still run and their
+  findings are printed, but the failure is named on stderr, listed under
+  `errors` in the JSON output, and the exit code is 2 — also under
+  `--fail-on never`. No SARIF is written for such a run, because GitHub closes
+  every alert that a new upload no longer contains.
 - **Large codebases scan about five times faster.** Every check walked each
   file's syntax tree on its own — LD302 twelve times, once per chat-model
   class — so 1,500 Python files took 45 seconds. The calls, imports and

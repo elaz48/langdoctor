@@ -5,7 +5,8 @@ flags/formats (json/sarif/markdown, --strict combos, inline suppression) are
 wired further in Phase 3; the arguments are declared here where cheap.
 
 Exit codes: 0 = clean (or below threshold), 1 = findings at/above --fail-on,
-2 = scan error.
+2 = scan error — including a check that crashed, which leaves the scan
+incomplete whatever --fail-on says.
 """
 
 from __future__ import annotations
@@ -90,33 +91,57 @@ def main(argv: list[str] | None = None) -> int:
     fail_on = args.fail_on or settings.fail_on or "high"
     ignore = _parse_ignore(args.ignore) + settings.ignore
 
+    allow_unimported = args.allow_unimported or settings.allow_unimported
     try:
         project = scan(args.path, excludes=set(settings.exclude))
-    except Exception as exc:  # scan error -> exit code 2
+        result = run_scan(project, ignore=ignore)
+        exempt = len(not_counted(result.findings, fail_on, args.strict, allow_unimported))
+        _emit(result, project.root, load_db().updated, args, exempt)
+    except Exception as exc:  # scan error -> exit code 2 (rendering included)
         print(f"langdoctor: scan error: {exc}", file=sys.stderr)
         return 2
 
-    db = load_db()
-    result = run_scan(project, ignore=ignore)
-    allow_unimported = args.allow_unimported or settings.allow_unimported
-    exempt = len(not_counted(result.findings, fail_on, args.strict, allow_unimported))
-    _emit(result.findings, project.root, db.updated, args, result.suppressed, exempt)
+    if result.errors:
+        # Fail closed: a check that can be made to crash must not turn the gate
+        # green, not even under --fail-on never.
+        for error in result.errors:
+            print(f"langdoctor: check failed: {error}", file=sys.stderr)
+        print(
+            "langdoctor: the scan is incomplete — findings of the failed checks are missing",
+            file=sys.stderr,
+        )
+        if args.format == "sarif":
+            print(
+                "langdoctor: no SARIF was written: an upload without the failed checks' "
+                "findings would close their open alerts",
+                file=sys.stderr,
+            )
+        return 2
     return exit_code_for(
         result.findings, fail_on=fail_on, strict=args.strict, allow_unimported=allow_unimported
     )
 
 
-def _emit(findings, project_root, db_date, args, suppressed: int, exempt: int = 0) -> None:
+def _emit(result, project_root, db_date, args, exempt: int = 0) -> None:
+    findings, suppressed = result.findings, result.suppressed
     if args.format == "json":
-        print(render_json(findings, project_root, db_date, suppressed, not_counted=exempt))
+        print(render_json(
+            findings, project_root, db_date, suppressed, not_counted=exempt, errors=result.errors,
+        ))
     elif args.format == "sarif":
-        print(render_sarif(findings, project_root, db_date, suppressed))
+        # GitHub treats an alert that a new upload no longer contains as fixed,
+        # so an incomplete scan produces no SARIF at all rather than one that
+        # silently lacks the failed checks' findings.
+        if not result.errors:
+            print(render_sarif(findings, project_root, db_date, suppressed))
     elif args.format == "markdown":
-        print(render_markdown(findings, project_root, db_date, suppressed))
+        print(render_markdown(
+            findings, project_root, db_date, suppressed, failed_checks=len(result.errors),
+        ))
     else:
         render(
             findings, project_root, db_date, suppressed=suppressed, quiet=args.quiet,
-            not_counted=exempt,
+            not_counted=exempt, failed_checks=len(result.errors),
         )
 
 

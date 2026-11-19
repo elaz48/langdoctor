@@ -33,10 +33,11 @@ def _make_console() -> Console:
 def render(
     findings, project_root, db_date, suppressed: int = 0,
     console: Console | None = None, quiet: bool = False, not_counted: int = 0,
+    failed_checks: int = 0,
 ):
     console = console or _make_console()
 
-    if not findings:
+    if not findings and not failed_checks:
         render_clean(console, db_date, suppressed)
         return
 
@@ -47,6 +48,12 @@ def render(
         for finding in [f for f in findings if f.severity == severity]:
             _render_finding(console, finding)
 
+    if failed_checks:
+        noun = "check" if failed_checks == 1 else "checks"
+        console.print(Text(
+            f"Scan incomplete: {failed_checks} {noun} failed, so findings may be missing.",
+            style="bold red",
+        ))
     if not_counted:
         noun = "finding" if not_counted == 1 else "findings"
         console.print(Text(

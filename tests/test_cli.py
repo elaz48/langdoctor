@@ -42,7 +42,7 @@ def test_cli_version(capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "langdoctor" in out
-    assert "advisories as of 2026-11-19" in out
+    assert "advisories as of 2026-11-20" in out
 
 
 def test_cli_list_checks(capsys):

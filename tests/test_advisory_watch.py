@@ -294,6 +294,9 @@ def test_load_kev_state_missing_file_is_empty(tmp_path):
 def test_packages_include_the_community_and_classic_lines():
     assert "langchain-community" in aw.PACKAGES
     assert "langchain-classic" in aw.PACKAGES
+    # partner packages named by advisories that were already tracked
+    assert "langchain-openai" in aw.PACKAGES
+    assert "langchain-anthropic" in aw.PACKAGES
 
 
 def test_every_known_langchain_community_cve_is_covered_or_ignored():

@@ -2,32 +2,46 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .checks import all_checks
 from .checks.versions import check_versions
 from .finding import SEVERITY_ORDER, Finding
+from .output import printable
 from .suppress import inline_suppressed
 
 FAIL_ON_CHOICES = ("critical", "high", "medium", "low", "never")
+_MAX_ERROR_LENGTH = 200
 
 
 @dataclass
 class ScanResult:
     findings: list[Finding]
     suppressed: int  # count dropped by --ignore / config / inline directives
+    # One line per check that crashed. A scan with any is INCOMPLETE: the
+    # findings of those checks are missing, so it must not read as a result.
+    errors: list[str] = field(default_factory=list)
 
 
 def run_scan(project, ignore: list[str] | None = None) -> ScanResult:
     ignore = list(ignore or ())
-    raw: list[Finding] = list(check_versions(project))
+    raw: list[Finding] = []
+    errors: list[str] = []
+    # SystemExit too: code a check calls into must not be able to end the
+    # process, least of all with status 0.
+    try:
+        raw.extend(check_versions(project))
+    except (Exception, SystemExit) as exc:
+        errors.append(_describe_failure("known-vulnerability check", exc))
 
     for check in all_checks():
         try:
             raw.extend(check.func(project) or [])
-        except Exception:
-            # A broken individual check must never abort the whole scan.
-            continue
+        except (Exception, SystemExit) as exc:
+            # One broken check does not stop the others — but it is recorded.
+            # Dropping it silently would let input that crashes a check pass
+            # for a clean scan.
+            errors.append(_describe_failure(check.id, exc))
 
     line_cache: dict = {}
     kept: list[Finding] = []
@@ -43,7 +57,12 @@ def run_scan(project, ignore: list[str] | None = None) -> ScanResult:
     kept.sort(
         key=lambda f: (not f.exploited_in_the_wild, -f.severity_rank, _not_imported(f), f.id)
     )
-    return ScanResult(findings=kept, suppressed=suppressed)
+    return ScanResult(findings=kept, suppressed=suppressed, errors=errors)
+
+
+def _describe_failure(name: str, exc: BaseException) -> str:
+    # The message can quote the scanned repository: strip control characters, cap the length.
+    return printable(f"{name}: {type(exc).__name__}: {exc}")[:_MAX_ERROR_LENGTH]
 
 
 def run_checks(project, ignore: list[str] | None = None) -> list[Finding]:

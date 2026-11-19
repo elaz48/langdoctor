@@ -414,3 +414,33 @@ def test_sqlite_store_advisories_start_with_the_release_that_shipped_the_store(t
         "requirements.txt": "langgraph-checkpoint-sqlite==2.0.8\n",
     })
     assert store_only | {"LD101"} <= _ids(check_versions(project))
+
+
+def test_partner_packages_named_by_tracked_advisories_are_checked(tmp_path):
+    """langchain-anthropic and langchain-openai came into scope through
+    advisories that were already tracked for another package."""
+    # CVE-2026-55443 (the LD114 advisory) also names langchain-anthropic <= 1.4.5.
+    project = _write_tree(tmp_path / "a", {"requirements.txt": "langchain-anthropic==1.4.5\n"})
+    findings = {f.id: f for f in check_versions(project)}
+    assert findings["LD135"].cve == "CVE-2026-55443"
+    assert findings["LD135"].severity == "medium"
+    assert findings["LD135"].fix == 'pip install "langchain-anthropic>=1.4.6"'
+    # the middleware it concerns first shipped in 1.0.0
+    for index, pin in enumerate(("0.3.22", "1.4.6")):
+        project = _write_tree(tmp_path / f"clean{index}", {
+            "requirements.txt": f"langchain-anthropic=={pin}\n",
+        })
+        assert "LD135" not in _ids(check_versions(project)), pin
+
+
+def test_the_image_url_ssrf_fix_was_itself_bypassable_until_1_1_14(tmp_path):
+    """CVE-2026-41488: the URL check added in langchain-openai 1.1.9 (LD134's
+    fix) validated and fetched in two separate DNS resolutions."""
+    project = _write_tree(tmp_path / "a", {"requirements.txt": "langchain-openai==1.1.9\n"})
+    findings = {f.id: f for f in check_versions(project)}
+    assert "LD134" not in findings
+    assert findings["LD136"].cve == "CVE-2026-41488"
+    assert findings["LD136"].severity == "low"
+    assert findings["LD136"].fix == 'pip install "langchain-openai>=1.1.14"'
+    project = _write_tree(tmp_path / "b", {"requirements.txt": "langchain-openai==1.1.14\n"})
+    assert not {"LD134", "LD136"} & _ids(check_versions(project))

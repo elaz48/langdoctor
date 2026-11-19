@@ -11,8 +11,16 @@ _SEVERITY_EMOJI = {
 
 
 def render_markdown(
-    findings: list[Finding], project_root, db_date: str, suppressed: int = 0
+    findings: list[Finding], project_root, db_date: str, suppressed: int = 0,
+    failed_checks: int = 0,
 ) -> str:
+    if failed_checks and not findings:
+        return (
+            "## 🩺 langdoctor\n\n"
+            f"**Scan incomplete — {failed_checks} check(s) failed, so findings may be "
+            "missing.**\n\n"
+            f"_advisories as of {db_date}_\n"
+        )
     if not findings:
         note = f" ({suppressed} suppressed)" if suppressed else ""
         return (
@@ -52,6 +60,9 @@ def render_markdown(
             title += " — " + _escape(describe_reachability(f.reachability))
         lines.append(f"| {sev} | {f.id} | {loc} | {title} | {_escape(f.fix or '')} |")
 
+    if failed_checks:
+        lines += ["", f"**Scan incomplete — {failed_checks} check(s) failed, so findings may "
+                      "be missing.**"]
     lines += ["", f"_advisories as of {db_date}_"]
     return "\n".join(lines) + "\n"
 
