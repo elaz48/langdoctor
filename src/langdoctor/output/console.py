@@ -117,7 +117,7 @@ def render_clean(console: Console, db_date: str, suppressed: int = 0) -> None:
                 (clear_line + "\n", "bold green"),
                 ("Your LangGraph / LangChain stack looks production-ready.\n\n", ""),
                 ("Keep it that way — run langdoctor in CI:\n", "dim"),
-                ("  - uses: elaz48/langdoctor@v1", "cyan"),
+                ("  - uses: elaz48/langdoctor@v0", "cyan"),
             ),
             title="langdoctor",
             border_style="green",

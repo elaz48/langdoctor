@@ -53,11 +53,13 @@ packages = ["src/langdoctor"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/langdoctor/data/advisories.json" = "langdoctor/data/advisories.json"
 
-# Example of langdoctor's own project config surface (spec §6). Defaults shown.
+# langdoctor's own config (spec §6); CI runs `langdoctor .` against it.
 [tool.langdoctor]
 fail-on = "high"
 ignore = []          # e.g. ["LD203", "LD302"]
-exclude = [".venv", "build", "dist"]
+# examples/ is vulnerable on purpose and tests/ holds fake keys and vulnerable
+# fixtures; both would drown out a real finding in the package itself.
+exclude = ["examples", "tests"]
 
 [tool.ruff]
 line-length = 100

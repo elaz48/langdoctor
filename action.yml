@@ -23,7 +23,7 @@ inputs:
     required: false
     default: "langdoctor.sarif"
   args:
-    description: "Extra command-line arguments passed to langdoctor"
+    description: "Extra command-line arguments passed to langdoctor, split on whitespace (no shell quoting)"
     required: false
     default: ""
 
@@ -37,31 +37,56 @@ runs:
   steps:
     - name: Install langdoctor
       shell: bash
-      # Pin the installed version to the action's own ref for reproducible CI
-      # scans (a security tool must not change behavior under a floating
-      # "latest"). @v1.2.3 -> ==1.2.3 (exact); @v1 or @v1.2 -> latest matching
-      # 1.x / 1.2.x; a branch/SHA (dev) -> latest published.
+      # The installed version follows the action's own ref, so a CI scan is
+      # reproducible (a security tool must not change behavior under a floating
+      # "latest"):
+      #   @v1.2.3       -> ==1.2.3 from PyPI
+      #   @v1 / @v1.2   -> newest 1.x / 1.2.x from PyPI
+      #   @<commit sha>, a branch, or a local `uses: ./`
+      #                 -> this checkout, built from source: the checks and the
+      #                    advisory database are exactly that commit's (its
+      #                    dependencies still resolve from PyPI)
+      env:
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
-        REF="${{ github.action_ref }}"
-        if [[ "$REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+        if [[ "$ACTION_REF" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
           SPEC="langdoctor==${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
-        elif [[ "$REF" =~ ^v([0-9]+)\.([0-9]+)$ ]]; then
+        elif [[ "$ACTION_REF" =~ ^v([0-9]+)\.([0-9]+)$ ]]; then
+          # 10# forces base 10: a zero-padded segment (v0.08) is not octal.
           MAJ=${BASH_REMATCH[1]}; MIN=${BASH_REMATCH[2]}
-          SPEC="langdoctor>=${MAJ}.${MIN},<$((MAJ + 1)).0.0"
-        elif [[ "$REF" =~ ^v([0-9]+)$ ]]; then
+          SPEC="langdoctor>=${MAJ}.${MIN}.0,<${MAJ}.$((10#$MIN + 1)).0"
+        elif [[ "$ACTION_REF" =~ ^v([0-9]+)$ ]]; then
           MAJ=${BASH_REMATCH[1]}
-          SPEC="langdoctor>=${MAJ}.0.0,<$((MAJ + 1)).0.0"
+          SPEC="langdoctor>=${MAJ}.0.0,<$((10#$MAJ + 1)).0.0"
         else
-          SPEC="langdoctor"
+          SPEC="$ACTION_PATH"
         fi
-        echo "action_ref=$REF -> installing '$SPEC'"
+        echo "action_ref=$ACTION_REF -> installing '$SPEC'"
         python -m pip install --upgrade "$SPEC"
     - name: Run langdoctor
       shell: bash
+      # Inputs reach the script through the environment. An expression written
+      # inside `run:` is pasted into the script before bash parses it, so an
+      # input containing `"; ...` would run as code.
+      env:
+        LD_PATH: ${{ inputs.path }}
+        LD_FORMAT: ${{ inputs.format }}
+        LD_FAIL_ON: ${{ inputs.fail-on }}
+        LD_OUTPUT: ${{ inputs.output }}
+        LD_ARGS: ${{ inputs.args }}
+        PYTHONUTF8: "1"   # a Windows runner pipes stdout as cp1252 otherwise
       run: |
         set -o pipefail
-        langdoctor "${{ inputs.path }}" \
-          --format "${{ inputs.format }}" \
-          --fail-on "${{ inputs.fail-on }}" \
-          ${{ inputs.args }} | tee "${{ inputs.output }}"
+        # -d '' takes every line of a multi-line `args`; read then stops at the
+        # end of input with a non-zero status, which is expected.
+        read -r -d '' -a EXTRA_ARGS <<< "$LD_ARGS" || true
+        # `--` keeps a path or file name that starts with `-` from being read as
+        # an option. ${arr[@]+...} expands to nothing for an empty array, even
+        # on bash 3.2.
+        langdoctor \
+          --format "$LD_FORMAT" \
+          --fail-on "$LD_FAIL_ON" \
+          ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
+          -- "$LD_PATH" | tee -- "$LD_OUTPUT"

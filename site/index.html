@@ -351,7 +351,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: elaz48/langdoctor@v1
+      - uses: elaz48/langdoctor@v0
         with:
           fail-on: high
       - uses: github/codeql-action/upload-sarif@v3
@@ -369,7 +369,7 @@ jobs:
     <span class="k">runs-on</span>: ubuntu-latest
     <span class="k">steps</span>:
       - <span class="k">uses</span>: <span class="s">actions/checkout@v4</span>
-      - <span class="k">uses</span>: <span class="s">elaz48/langdoctor@v1</span>
+      - <span class="k">uses</span>: <span class="s">elaz48/langdoctor@v0</span>
         <span class="k">with</span>:
           <span class="k">fail-on</span>: high
       - <span class="k">uses</span>: <span class="s">github/codeql-action/upload-sarif@v3</span>
