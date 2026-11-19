@@ -117,7 +117,7 @@ Severity levels: `critical` / `high` / `medium` / `low` / `info`.
 - **LD201** `MemorySaver` used while project looks production-bound (Dockerfile, k8s manifests, or fly/render config present) (high)
 - **LD202** `SqliteSaver` used — warn about write-throughput collapse under concurrency, recommend `PostgresSaver` (medium)
 - **LD203** Checkpoint store reachable from user-controlled filter input: heuristic — `get_state_history(` called with a variable that flows from a FastAPI/Flask request parameter in the same file (high; mark as heuristic in output)
-- **LD204** No checkpointer configured at all on a compiled graph that has interrupts/HITL nodes (medium)
+- **LD204** No checkpointer configured at all on a compiled graph that has interrupts/HITL nodes (medium; heuristic since 0.1.8 — interrupt use is judged per file, and a platform that injects the checkpointer needs none passed)
 
 ### Category 3xx — Graph & runtime config
 - **LD301** No `recursion_limit` set anywhere → runaway-loop cost risk (medium)
@@ -134,7 +134,7 @@ Severity levels: `critical` / `high` / `medium` / `low` / `info`.
 - **LD501** Dependencies not pinned (no lockfile: uv.lock/poetry.lock/requirements with ==) — supply-chain hardening (medium)
 - **LD502** GitHub Actions workflows use unpinned third-party actions (tag instead of SHA) (medium; motivated by the LiteLLM/Trivy supply-chain attack)
 
-False-positive policy: heuristic checks (LD203, LD302) must say "heuristic" in output and never fail CI by default (only with `--strict`).
+False-positive policy: heuristic checks (LD203, LD204, LD302) must say "heuristic" in output and never fail CI by default (only with `--strict`).
 
 ---
 
@@ -215,7 +215,7 @@ langdoctor [PATH] [options]
 - `langdoctor list-checks` → table of all checks with IDs, severity, description
 - `langdoctor --version` prints tool version **and advisory DB date** ("advisories as of 2026-07-04") — this builds trust and nudges updates.
 - Delight detail: when the scan is clean, print a friendly all-clear with a stethoscope 🩺 and suggest running in CI.
-- **GitHub Action:** ship `action.yml` in the repo so users can add one step: `uses: elaz48/langdoctor@v1`. SARIF output wires findings into the GitHub Security tab. This is a major adoption lever.
+- **GitHub Action:** ship `action.yml` in the repo so users can add one step: `uses: elaz48/langdoctor@v0` (the moving major tag; `@v1` once 1.0 ships). SARIF output wires findings into the GitHub Security tab. This is a major adoption lever.
 - **pre-commit hook:** provide `.pre-commit-hooks.yaml`.
 
 ---

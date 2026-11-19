@@ -87,7 +87,7 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
 | `LD203` | Checkpointer & state | high (heuristic) | Checkpoint history filtered by user-controlled input |
-| `LD204` | Checkpointer & state | medium | Compiled graph with interrupts has no checkpointer |
+| `LD204` | Checkpointer & state | medium (heuristic) | Compiled graph with interrupts has no checkpointer |
 | `LD301` | Graph & runtime config | medium | No recursion_limit configured for a LangGraph run |
 | `LD302` | Graph & runtime config | low (heuristic) | LLM client created without a timeout |
 | `LD303` | Graph & runtime config | info | Deprecated pre-1.0 LangChain import |
@@ -130,7 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: elaz48/langdoctor@v1
+      - uses: elaz48/langdoctor@v0
         with:
           fail-on: high
       - uses: github/codeql-action/upload-sarif@v3
@@ -141,13 +141,28 @@ jobs:
 
 Findings show up in your repo's **Security → Code scanning** tab.
 
+`@v0` follows the newest 0.x release. langdoctor's own `LD502` will flag that
+line — a tag can be moved, and ours is no exception. It is a medium finding, so
+it does not fail the default `fail-on: high`. To remove it, pin the action to
+the full commit SHA of a release (shown on each
+[release page](https://github.com/elaz48/langdoctor/releases)):
+
+```yaml
+      - uses: elaz48/langdoctor@<full commit SHA>  # the release it belongs to
+```
+
+Pinned to a SHA from 0.1.8 on, the action builds langdoctor from that exact
+commit instead of installing it from PyPI, so the checks and the advisory
+database are pinned with it. Its two dependencies (`rich`, `packaging`) still
+resolve from PyPI.
+
 ### pre-commit
 
 ```yaml
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/elaz48/langdoctor
-    rev: v0.1.0
+    rev: v0.1.7
     hooks:
       - id: langdoctor
 ```

@@ -70,7 +70,7 @@ Every advisory/check has a stable ID `LD###`, categorized by hundreds:
 
 ## False-positive policy
 
-Heuristic checks (e.g. LD203, LD302) MUST print "heuristic" in output and MUST
+Heuristic checks (LD203, LD204, LD302) MUST print "heuristic" in output and MUST
 NOT affect CI exit code by default — only under `--strict`. Trust is the product.
 
 ## Verification discipline (learned in Phase 0)
@@ -114,7 +114,21 @@ no shelling out, explicit UTF-8 (`encoding="utf-8", errors="replace"`), respect
   owner `elaz48`, repo `langdoctor`, workflow filename `release.yml`,
   environment `pypi`. Release trigger: push tag `vX.Y.Z` → full test matrix →
   `uv build` → publish → GitHub Release with changelog.
+- **The Action is documented as `elaz48/langdoctor@v0`** — a moving major tag
+  that `release.yml`'s `major-tag` job force-moves to the newest release of its
+  line (it becomes `@v1` at 1.0). Docs
+  must never name a major tag that has no release behind it;
+  `tests/test_repo_consistency.py` enforces this and the README's pre-commit
+  `rev`, so a version bump has to update the README in the same commit.
+- **`release.yml` is split on purpose:** `test → build → publish →
+  github-release / major-tag`. Only `publish` holds `id-token: write` (with
+  `environment: pypi`), and it runs nothing but the artifact download and the
+  PyPA publish action — never add a build step, a shell step or `contents:
+  write` to it. Every action in that file is pinned to a commit SHA, and `build`
+  refuses a tag whose commit is not on `main` (push `main` before the tag).
+  `tests/test_repo_consistency.py` enforces all of this.
 - **CI matrix:** ubuntu / macos / windows × Python 3.10 / 3.12 / 3.13; ruff + pytest.
+  CI also runs `langdoctor .` on this repo and `action.yml` from the checkout.
 - **Website (`langdoctor.dev`)** is a single self-contained static HTML file
   (spec §10), uploaded **manually via FTP to PHP/DirectAdmin shared hosting**.
   Do NOT set up GitHub Pages or any Actions-based site deploy.

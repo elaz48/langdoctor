@@ -6,6 +6,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The documented GitHub Action could not be resolved.** The README, the
+  website and the "all clear" panel all said `uses: elaz48/langdoctor@v1`, but
+  only `v0.1.x` tags exist. They now say `@v0`, a major tag the release
+  workflow moves to the newest release of its line (re-running an older
+  release's workflow does not move it back). The release trigger is narrowed
+  from `v*` to `vX.Y.Z` so pushing `v0` by hand cannot start a release.
+- **LD204 false positive on `re.compile()`.** Any `.compile(...)` call in a
+  file that also called `interrupt()` counted as a graph compiled without a
+  checkpointer. The builtin `compile()` and functions called through an
+  imported module (`re.compile`, `torch.compile`) are no longer considered.
+  A `.compile()` on another non-graph object in such a file (a SQLAlchemy
+  statement, say) is still picked up, which is one reason LD204 is now marked
+  heuristic (see Changed).
+- **LD502 false positive on comments.** A commented-out step, or a comment
+  that merely quotes a `uses: owner/repo@tag` line, was reported as an unpinned
+  action. Only a real `uses:` key counts now. Found by running langdoctor on
+  its own workflows.
+- **Excluded directories were walked and then filtered.** A project with a
+  60,000-file `node_modules` took 2.9s to scan instead of 0.2s. Excluded
+  directories are now pruned before they are entered. Files are also visited
+  in sorted order, so equally ranked findings come out in the same order on
+  every filesystem.
+- The README's pre-commit snippet pinned `rev: v0.1.0`; it now names the
+  current release, and a test keeps it there.
+- The Action's `@vX.Y` form installed anything below the next major instead of
+  the `X.Y.x` line its comment promised.
+
+### Changed
+- **LD204 is now a heuristic.** It decides that "interrupts are used" per file,
+  and a graph deployed on a platform that injects the checkpointer is compiled
+  without one on purpose. Like every heuristic it prints `[heuristic]` and no
+  longer affects the exit code unless `--strict` is given — this only changes
+  the result for runs with `--fail-on medium` or `low`.
+- **Release workflow hardened.** Building and publishing are separate jobs:
+  the only job that can obtain the PyPI token downloads the already-built
+  files and runs the PyPA publisher, with no build tool, no shell step and no
+  write access to the repository. Every action in `release.yml` is pinned to a
+  commit SHA, and a tag whose commit is not on `main` is refused before
+  anything is built.
+- **Action: pinning to a commit SHA pins the checks and the advisory DB.** A
+  SHA or branch ref used to install the latest release from PyPI; it now builds
+  langdoctor from the action's own checkout (its dependencies still resolve
+  from PyPI). The README says plainly that LD502 flags the recommended `@v0`
+  line and shows the SHA-pinned form.
+- **Action: inputs are passed through the environment**, not interpolated into
+  the shell script. `args` is therefore split on whitespace (it may span
+  lines) and shell quoting inside it is no longer interpreted — write
+  `--ignore LD203,LD302`, not `--ignore "LD203, LD302"`. A `path` or `output`
+  that starts with `-` is no longer read as an option, and the step sets
+  `PYTHONUTF8=1` so non-ASCII output survives a Windows runner's pipe.
+- CI runs `langdoctor .` on this repository and runs `action.yml` from the
+  checkout on Linux, macOS and Windows. The repo's own config excludes
+  `examples/` and `tests/`, which are vulnerable on purpose.
+
 ## [0.1.7] - 2026-11-19
 
 Advisory deprecation support, used to retire LD112 in favor of LD133, plus an
