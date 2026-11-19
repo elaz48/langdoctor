@@ -112,7 +112,8 @@ Every advisory/check has a stable ID `LD###`, categorized by hundreds:
   `advisories.json`. It then never fires and `list-checks` marks it; its
   successor inherits its ID and aliases for matching, so existing `ignore`s keep
   working; and its identifiers keep the watcher from re-alerting.
-  Example: LD112 → LD133.
+  Examples: LD112 → LD133, LD115 → LD134 (both followed a record filed under
+  the wrong package — read the vendor advisory's text, not only its metadata).
 - Users suppress by ID; docs deep-link by ID.
 
 ## False-positive policy

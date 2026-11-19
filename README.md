@@ -64,7 +64,7 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD112` | Known CVEs | deprecated | ~~Unsafe URL path construction in the LangGraph SDK~~ → superseded by `LD133` |
 | `LD113` | Known CVEs | high | Template injection via attribute access in prompt templates |
 | `LD114` | Known CVEs | medium | Path traversal and sandbox escape in file-search middleware |
-| `LD115` | Known CVEs | low | SSRF via image_url token counting |
+| `LD115` | Known CVEs | deprecated | ~~SSRF via image_url token counting~~ → superseded by `LD134` |
 | `LD116` | Known CVEs | medium | Incomplete f-string validation in prompt templates |
 | `LD117` | Known CVEs | high | Unsafe deserialization via overly broad load() allowlists |
 | `LD118` | Known CVEs | medium | Namespace prefix matching crosses segments (SQLite store) |
@@ -83,6 +83,7 @@ ship. langdoctor ships the CVE data with the package and runs fully offline.
 | `LD131` | Known CVEs | medium | RemoteGraph v3 streaming passes unencoded thread ids to the SDK |
 | `LD132` | Known CVEs | high | Custom-auth decorators ignore `actions=` → authz bypass (langgraph-sdk) |
 | `LD133` | Known CVEs | medium | Unsafe URL path construction in the LangGraph SDK (langgraph-sdk) |
+| `LD134` | Known CVEs | low | SSRF via image_url token counting in ChatOpenAI (langchain-openai) |
 | `LD150` | Known CVEs | high | Langflow older than the current secure baseline (1.13.0) |
 | `LD201` | Checkpointer & state | high | MemorySaver used in a production-bound project |
 | `LD202` | Checkpointer & state | medium | SqliteSaver may collapse under write concurrency |
@@ -107,7 +108,8 @@ IDs are permanent: a check that turns out to be wrong is deprecated, not
 renumbered or removed. It stays listed (marked `deprecated` in
 `langdoctor list-checks`), stops producing findings, and names its replacement —
 `LD112` matched the SDK's CVE against the wrong package and is superseded by
-`LD133`.
+`LD133`; `LD115` followed an advisory filed under `langchain-core` for code that
+lives in `langchain-openai`, and is superseded by `LD134`.
 
 A finding can arrive without a fix line. Some advisories have no released fix —
 `LD127` is patched upstream but no `langchain-community` release carries it yet —

@@ -316,3 +316,13 @@ def test_db_without_container_images_still_loads(tmp_path):
     path = tmp_path / "db.json"
     path.write_text('{"schema_version": 2, "updated": "x", "advisories": []}', encoding="utf-8")
     assert load_db(path).container_images == {}
+
+
+def test_ld115_is_deprecated_in_favour_of_ld134():
+    by = {a.id: a for a in load_db().advisories}
+    assert by["LD115"].deprecated == "2026-11-19"
+    assert by["LD115"].superseded_by == ("LD134",)
+    assert by["LD134"].package == "langchain-openai"
+    assert by["LD134"].cve == by["LD115"].cve == "CVE-2026-26013"
+    assert by["LD134"].cvss_score == by["LD115"].cvss_score
+    assert [(r.introduced, r.fixed) for r in by["LD134"].ranges] == [("0", "1.1.9")]

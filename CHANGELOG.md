@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     import list would be incomplete: the vulnerable code is the default
     serializer of every checkpointer (LD102, LD103, LD108), runs inside
     `astream_log()` / `RunnableWithMessageHistory` / template handling on any
-    runnable (LD105, LD113, LD116, LD117), is a method (LD115, LD130, LD133),
+    runnable (LD105, LD113, LD116, LD117), is a method (LD130, LD133, LD134),
     is created by the hosting platform (LD119, LD129), or has entry points the
     advisory does not name (LD104's `.save()`, LD114's loaders, LD125's
     request tools).
@@ -73,7 +73,28 @@ stalled scan.
   chain of any length, and absurdly nested JSON/TOML are all read as far as
   they make sense instead of ending the run with exit code 2.
 
+### Deprecated
+- **LD115** (CVE-2026-26013 on `langchain-core < 1.2.11`), superseded by
+  **LD134** (the same CVE on `langchain-openai < 1.1.9`). GHSA and PYSEC file
+  the image-URL SSRF under `langchain-core`, but the vendor advisory's own text
+  names `langchain_openai/chat_models/base.py` and says it is "patched in
+  `langchain-openai==1.1.9` (requires `langchain-core==1.2.11`)"; the fix commit
+  adds only an SSRF helper to core. LD115 therefore flagged projects that do
+  not install `langchain-openai`, and missed projects that upgraded core but
+  kept `langchain-openai` 1.1.8, which accepts any core from 1.2.9. Checked
+  against the advisory text, the fix commit and the PyPI metadata of both
+  releases. An existing `ignore` of `LD115` keeps suppressing LD134.
+
 ### Fixed
+- **SQLite-store advisories no longer fire on releases that have no store.**
+  LD109, LD110, LD118 and LD128 were reported for every
+  `langgraph-checkpoint-sqlite` below their fix, as GHSA and OSV give the range
+  from 0. The store first shipped in 2.0.8: the 2.0.5–2.0.7 wheels on PyPI and
+  the source tree at those tags contain no `langgraph/store/sqlite`. Their
+  ranges now start at 2.0.8; LD101, which is in the checkpointer, is unchanged.
+- **LD114's description said "document loaders".** The advisory names the
+  prompt and chain/agent *configuration* loaders. Its range is unchanged: those
+  loaders ship in the 0.x wheels, the fixed middleware only in 1.x.
 - **A Python file nested too deeply to parse crashed the scan** with a
   traceback. It is now treated like any other file that does not parse.
 

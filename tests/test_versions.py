@@ -14,7 +14,7 @@ def _ids(findings):
 def test_vulnerable_project_triggers_expected_advisories():
     findings = check_versions(scan(FIX / "vulnerable_project"))
     got = _ids(findings)
-    # langgraph-checkpoint-sqlite 2.0.5 -> LD101, LD109, LD110, LD118, LD128
+    # langgraph-checkpoint-sqlite 2.0.10 -> LD101, LD109, LD110, LD118, LD128
     assert {"LD101", "LD109", "LD110", "LD118", "LD128"} <= got
     # langgraph-checkpoint-postgres 3.1.0 -> LD119, LD129 (shared CVEs, other package)
     assert {"LD119", "LD129"} <= got
@@ -22,8 +22,10 @@ def test_vulnerable_project_triggers_expected_advisories():
     assert {"LD130", "LD132"} <= got
     # langflow 1.2.0 -> every KEV Langflow advisory
     assert {"LD106", "LD111", "LD120", "LD121", "LD122", "LD123", "LD124"} <= got
-    # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113, LD115, LD116, LD117
-    assert {"LD104", "LD105", "LD113", "LD115", "LD116", "LD117"} <= got
+    # langchain-core 1.0.5 (1.x line) -> LD104, LD105, LD113, LD116, LD117
+    assert {"LD104", "LD105", "LD113", "LD116", "LD117"} <= got
+    # langchain-openai 1.1.8 -> LD134 (the image_url SSRF lives there, not in core)
+    assert "LD134" in got and "LD115" not in got
     # langchain 1.3.0 -> LD114
     assert "LD114" in got
     # langgraph 1.0.5 -> LD102
@@ -65,7 +67,7 @@ def test_dual_line_fix_targets_matching_line():
     # LD113 is also dual-line; the 1.x line is fixed at 1.0.7
     assert findings["LD113"].fix == 'pip install "langchain-core>=1.0.7"'
     # v0.1.2 langchain-core advisories, all resolved on the 1.x line for 1.0.5
-    assert findings["LD115"].fix == 'pip install "langchain-core>=1.2.11"'
+    assert findings["LD134"].fix == 'pip install "langchain-openai>=1.1.9"'
     assert findings["LD116"].fix == 'pip install "langchain-core>=1.2.28"'
     assert findings["LD117"].fix == 'pip install "langchain-core>=1.3.3"'
     assert findings["LD117"].severity == "high"  # CVSS 8.2, the notable one
@@ -377,3 +379,38 @@ def test_aggregate_is_judged_per_install_not_per_package(tmp_path):
     assert by_file["b/requirements.txt"] == {"LD150"}
     assert "LD106" in by_file["a/requirements.txt"]
     assert "LD150" not in by_file["a/requirements.txt"]
+
+
+def test_image_url_ssrf_is_judged_by_langchain_openai_not_langchain_core(tmp_path):
+    """CVE-2026-26013: GHSA and PYSEC file it under langchain-core < 1.2.11, but
+    the vendor advisory names langchain_openai/chat_models/base.py and says it
+    is "patched in langchain-openai==1.1.9 (requires langchain-core==1.2.11)".
+    The fix commit adds only an SSRF helper to core."""
+    # an old core with no langchain-openai has no vulnerable code to run
+    project = _write_tree(tmp_path / "a", {"requirements.txt": "langchain-core==1.2.0\n"})
+    assert not {"LD115", "LD134"} & _ids(check_versions(project))
+    # a patched core does not help while langchain-openai itself is old:
+    # 1.1.8 only requires langchain-core >= 1.2.9
+    project = _write_tree(tmp_path / "b", {
+        "requirements.txt": "langchain-core==1.3.5\nlangchain-openai==1.1.8\n",
+    })
+    findings = {f.id: f for f in check_versions(project)}
+    assert "LD134" in findings and findings["LD134"].cve == "CVE-2026-26013"
+    assert findings["LD134"].matches_id("LD115")  # an existing ignore keeps working
+    project = _write_tree(tmp_path / "c", {"requirements.txt": "langchain-openai==1.1.9\n"})
+    assert "LD134" not in _ids(check_versions(project))
+
+
+def test_sqlite_store_advisories_start_with_the_release_that_shipped_the_store(tmp_path):
+    """langgraph/store/sqlite first appears in the 2.0.8 wheel; 2.0.5-2.0.7 ship
+    only the checkpointer, so the store's CVEs cannot apply to them."""
+    store_only = {"LD109", "LD110", "LD118", "LD128"}
+    project = _write_tree(tmp_path / "a", {
+        "requirements.txt": "langgraph-checkpoint-sqlite==2.0.7\n",
+    })
+    got = _ids(check_versions(project))
+    assert "LD101" in got and not store_only & got
+    project = _write_tree(tmp_path / "b", {
+        "requirements.txt": "langgraph-checkpoint-sqlite==2.0.8\n",
+    })
+    assert store_only | {"LD101"} <= _ids(check_versions(project))
