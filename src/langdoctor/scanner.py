@@ -6,6 +6,7 @@ reads files as UTF-8 with replacement so a stray byte never aborts a scan.
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,15 +59,19 @@ def scan(root, excludes: set[str] | None = None) -> Project:
 def _discover_files(root: Path, excludes: set[str], project: Project) -> None:
     if root.is_file():
         return
-    for path in root.rglob("*"):
-        # Exclude by parent directory only, so files whose *name* matches an
-        # excluded dir name (e.g. a top-level `.env`) are still discovered.
-        parent_parts = path.relative_to(root).parts[:-1]
-        if any(part in excludes for part in parent_parts):
-            continue
-        if path.is_file():
-            rel = path.relative_to(root).as_posix()
-            project.present_files.add(rel)
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune in place (the os.walk contract): a directory removed here is
+        # never descended into, so a large node_modules/.venv costs nothing.
+        # Only directory names are matched, so a FILE named like an excluded
+        # dir (e.g. a top-level `.env`) is still discovered. Sorting makes the
+        # scan order, and so the order of equally ranked findings, the same on
+        # every filesystem.
+        dirnames[:] = sorted(d for d in dirnames if d not in excludes)
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            if not path.is_file():  # broken symlink, socket, fifo
+                continue
+            project.present_files.add(path.relative_to(root).as_posix())
             if path.suffix == ".py":
                 project.python_files.append(path)
 
