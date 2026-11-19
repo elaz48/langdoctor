@@ -32,7 +32,9 @@ def load_sources(project) -> list[SourceFile]:
         text = _read(path)
         try:
             tree: ast.Module | None = ast.parse(text)
-        except (SyntaxError, ValueError):
+        except (SyntaxError, ValueError, RecursionError):
+            # RecursionError: an expression nested deeper than the parser can
+            # follow. Like any other file that does not parse, it is unread.
             tree = None
         sources.append(SourceFile(path, _rel(path, project.root), text, text.splitlines(), tree))
     with contextlib.suppress(AttributeError, TypeError):  # pragma: no cover - defensive
@@ -67,10 +69,51 @@ def callee_name(func: ast.AST) -> str | None:
     return None
 
 
+@dataclass(frozen=True)
+class _TreeIndex:
+    """Everything the checks look up in a file, gathered in ONE walk of its tree.
+
+    Each check used to walk the tree itself (LD302 twelve times, once per chat
+    model), which made a scan of a large codebase take most of a minute.
+    """
+
+    calls: dict[str, list[ast.Call]]            # callee name -> its calls, in walk order
+    imports: list[ast.Import | ast.ImportFrom]  # in walk order
+    attributes: list[ast.Attribute]
+
+
+def _index(tree: ast.Module) -> _TreeIndex:
+    index = getattr(tree, "_ld_index", None)
+    if index is None:
+        calls: dict[str, list[ast.Call]] = {}
+        imports: list[ast.Import | ast.ImportFrom] = []
+        attributes: list[ast.Attribute] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                name = callee_name(node.func)
+                if name:
+                    calls.setdefault(name, []).append(node)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                imports.append(node)
+            elif isinstance(node, ast.Attribute):
+                attributes.append(node)
+        index = _TreeIndex(calls, imports, attributes)
+        tree._ld_index = index  # cached on the tree: a file is parsed once per scan
+    return index
+
+
 def find_calls(tree: ast.Module | None, name: str) -> list[ast.Call]:
     if tree is None:
         return []
-    return [n for n in ast.walk(tree) if isinstance(n, ast.Call) and callee_name(n.func) == name]
+    return list(_index(tree).calls.get(name, ()))
+
+
+def import_nodes(tree: ast.Module | None) -> list[ast.Import | ast.ImportFrom]:
+    return [] if tree is None else _index(tree).imports
+
+
+def attribute_nodes(tree: ast.Module | None) -> list[ast.Attribute]:
+    return [] if tree is None else _index(tree).attributes
 
 
 def call_kwargs(call: ast.Call) -> set[str]:
@@ -80,14 +123,12 @@ def call_kwargs(call: ast.Call) -> set[str]:
 def import_entries(tree: ast.Module | None) -> list[tuple[str, str, int]]:
     """Return (module, imported_name, lineno). For `import x`, name is ''."""
     out: list[tuple[str, str, int]] = []
-    if tree is None:
-        return out
-    for node in ast.walk(tree):
+    for node in import_nodes(tree):
         if isinstance(node, ast.ImportFrom):
             mod = node.module or ""
             for alias in node.names:
                 out.append((mod, alias.name, node.lineno))
-        elif isinstance(node, ast.Import):
+        else:
             for alias in node.names:
                 out.append((alias.name, "", node.lineno))
     return out

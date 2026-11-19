@@ -55,6 +55,9 @@ class Advisory:
     refs: tuple[str, ...]
     deprecated: str | None = None  # date it was deprecated; None = live
     superseded_by: tuple[str, ...] = ()
+    # Public entry points an application must import for the vulnerable code to
+    # be in play: "pkg.module:Name" or "pkg.module". Empty = no claim is made.
+    symbols: tuple[str, ...] = ()
 
     def severity(self, buckets: dict[str, float] | None = None) -> str:
         return derive_severity(self.cvss_score, self.severity_override, buckets or DEFAULT_BUCKETS)
@@ -106,6 +109,7 @@ def _parse_advisory(raw: dict) -> Advisory:
         refs=tuple(raw.get("refs") or ()),
         deprecated=_deprecated(raw.get("deprecated")),
         superseded_by=_id_list(raw.get("superseded_by")),
+        symbols=_id_list(raw.get("symbols")),
     )
 
 

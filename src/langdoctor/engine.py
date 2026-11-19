@@ -38,14 +38,23 @@ def run_scan(project, ignore: list[str] | None = None) -> ScanResult:
         else:
             kept.append(f)
 
-    # KEV first, then severity desc, then stable by id.
-    kept.sort(key=lambda f: (not f.exploited_in_the_wild, -f.severity_rank, f.id))
+    # KEV first, then severity desc; within a severity, findings whose API is
+    # not imported anywhere go last; then stable by id.
+    kept.sort(
+        key=lambda f: (not f.exploited_in_the_wild, -f.severity_rank, _not_imported(f), f.id)
+    )
     return ScanResult(findings=kept, suppressed=suppressed)
 
 
 def run_checks(project, ignore: list[str] | None = None) -> list[Finding]:
     """Convenience wrapper returning just the surviving findings."""
     return run_scan(project, ignore).findings
+
+
+def _not_imported(finding: Finding) -> bool:
+    # `is False`, not falsy: None means some code could not be read, and an
+    # unknown answer must not push a finding down the list.
+    return finding.reachability is not None and finding.reachability.reachable is False
 
 
 def _suppressed(finding: Finding, ignore: list[str]) -> bool:

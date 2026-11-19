@@ -114,6 +114,52 @@ A finding can arrive without a fix line. Some advisories have no released fix �
 and langdoctor reports those as affected with no upgrade to recommend rather than
 inventing a version or staying quiet.
 
+## Is the vulnerable code actually used?
+
+A version match says the vulnerable code is installed, not that your project
+calls it. Where the vendor ties an advisory to specific APIs, langdoctor also
+looks for those APIs in your Python sources and adds one line to the finding:
+
+```text
+● LD126  HIGH
+  XXE in EverNoteLoader via unguarded iterparse()
+  requirements.txt:1  ·  CVE-2025-6984 (GHSA-pc6w-59fv-rh23, PYSEC-2026-1515)
+  ↳ used at svc/ingest.py:1 (EverNoteLoader)
+  → pip install "langchain-community>=0.3.27"
+```
+
+or, when nothing in the scanned tree imports it:
+
+```text
+  ↳ not imported in 14 Python files: EverNoteLoader
+```
+
+If some Python could not be read — a file your interpreter cannot parse, or a
+Jupyter notebook, which is not scanned — the line says so instead
+(`no import found in 14 Python files, but 2 more could not be read`) and the
+finding keeps its place in the list.
+
+This is a statement about imports, not a verdict:
+
+- **It never changes severity or the exit code.** A finding whose API is not
+  imported is still reported in full; it is only listed after the others of
+  the same severity.
+- **It sees** `from x import Name`, `import x.y as z` followed by `z.Name`, the
+  legacy import paths that re-export the same class (`langchain.document_loaders`)
+  and known subclasses (`DocusaurusLoader` for `SitemapLoader`).
+- **It does not see** dynamic imports, or a library that reaches the vulnerable
+  code on your behalf.
+- **Most advisories make no claim, on purpose.** 10 of the 33 list entry points
+  today. The others are reached through defaults — the serializer every
+  checkpointer uses, `astream_log()` on any runnable, a store the hosting
+  platform creates for you — so no import list would be complete, and a wrong
+  "not imported" is worse than none. Langflow advisories concern the running
+  server, not your imports.
+
+The entry points are data in `advisories.json`, each list checked against the
+vendor advisory and the package source. JSON output carries it as
+`reachability`; SARIF attaches the use site as a related location.
+
 ## What it reads
 
 - **Python manifests, anywhere in the tree** — `requirements*.txt` (and the

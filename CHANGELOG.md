@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Reachability: is the vulnerable API imported?** An advisory can now list
+  `symbols`, the public entry points an application must import for the
+  vulnerable code to be in play, and a version finding then says where the
+  project uses them (`↳ used at svc/ingest.py:1 (EverNoteLoader)`) or that it
+  does not (`↳ not imported in 14 Python files: EverNoteLoader`). It is
+  evidence, not a verdict: severity and exit code are untouched, and a
+  not-imported finding is only listed after the others of its severity. When
+  some Python could not be read (a file the interpreter rejects, a Jupyter
+  notebook), the result is reported as unknown — `no import found in 14 Python
+  files, but 2 more could not be read` — and the finding is not moved. JSON
+  has a `reachability` object per finding (`reachable` is `true`, `false` or
+  `null`); SARIF adds the use sites as related locations.
+  - 10 advisories list entry points, each checked against the vendor advisory
+    text and the package source at an affected tag (2026-11-19): LD101
+    (`SqliteSaver`, `AsyncSqliteSaver`), LD107 (`langgraph.cache`), LD109 /
+    LD110 / LD118 / LD128 (`langgraph.store.sqlite`), LD126 (`EverNoteLoader`),
+    LD127 (`SitemapLoader` and its subclass `DocusaurusLoader`), LD131
+    (`RemoteGraph`), LD132 (`Auth`). Legacy re-export paths
+    (`langchain.document_loaders`, `langchain_classic.document_loaders`) are
+    included.
+  - The other 15 library advisories make no claim, deliberately, because an
+    import list would be incomplete: the vulnerable code is the default
+    serializer of every checkpointer (LD102, LD103, LD108), runs inside
+    `astream_log()` / `RunnableWithMessageHistory` / template handling on any
+    runnable (LD105, LD113, LD116, LD117), is a method (LD115, LD130, LD133),
+    is created by the hosting platform (LD119, LD129), or has entry points the
+    advisory does not name (LD104's `.save()`, LD114's loaders, LD125's
+    request tools).
+  - The GitHub Advisory Database lists no vulnerable functions for any of
+    these advisories; the entry points are langdoctor's own curation.
 - **Container images are a dependency source.** A Dockerfile `FROM` or a
   compose / Kubernetes `image:` line that names an official Langflow image
   (`langflowai/langflow`, `-backend`, `-ep`, `-all`, `-nightly`, and their
@@ -43,7 +73,16 @@ stalled scan.
   chain of any length, and absurdly nested JSON/TOML are all read as far as
   they make sense instead of ending the run with exit code 2.
 
+### Fixed
+- **A Python file nested too deeply to parse crashed the scan** with a
+  traceback. It is now treated like any other file that does not parse.
+
 ### Changed
+- **Large codebases scan about five times faster.** Every check walked each
+  file's syntax tree on its own — LD302 twelve times, once per chat-model
+  class — so 1,500 Python files took 45 seconds. The calls, imports and
+  attribute accesses of a file are now indexed in one walk; the same tree
+  scans in 9 seconds (5 of them parsing), with identical findings.
 - **Scanning subdirectories can surface findings an upgrade did not have
   before** — an old pin in a nested service, for instance. Directories that
   are vulnerable on purpose belong in `exclude`.

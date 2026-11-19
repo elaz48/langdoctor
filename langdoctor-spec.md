@@ -52,6 +52,7 @@ langdoctor/
 │   ├── cli.py                # argparse or typer-free argparse; keep deps low
 │   ├── scanner.py            # project discovery: manifests anywhere in the tree, python sources
 │   ├── containers.py         # image references in Dockerfiles / YAML (added in 0.2.0)
+│   ├── reachability.py       # is an advisory's `symbols` list imported by the project?
 │   ├── engine.py             # runs all registered checks, collects Findings
 │   ├── finding.py            # Finding dataclass: id, severity, title, detail, file, line, fix, refs
 │   ├── checks/
@@ -196,6 +197,7 @@ False-positive policy: heuristic checks (LD203, LD204, LD302) must say "heuristi
 - **`exploited_in_the_wild` (KEV flag).** Boolean, sourced from CISA KEV + confirmed vendor/threat-intel reporting. A true value bumps the finding above all non-KEV findings regardless of CVSS and renders a distinct 🔴 KEV badge in output.
 - **`aliases`.** Alternate identifiers (GHSA, PYSEC, duplicate/news-coverage CVE IDs). Output shows the primary `cve` plus aliases. **Check lookup, `--ignore`, and inline `# langdoctor: ignore=` suppression MUST match on the LD id, the primary CVE, OR any alias** — so a user who only knows the vuln under its news-coverage identifier can still reference/suppress it. (Motivating case: CVE-2026-5027 ≡ the LD111 Langflow path-traversal, which OSV had not yet indexed at build time.)
 - **References.** Every advisory carries at least one `refs` URL.
+- **`symbols`** (per advisory, optional). The public entry points an application must import for the vulnerable code to be in play: `"pkg.module:Name"` (Name imported from that module or a submodule, or reached as `module.Name`) or `"pkg.module"` (any import of it). Used only to annotate a finding with where the API is used, or that it is not imported; never affects severity or exit code. Left empty whenever an import list would be incomplete.
 - **`container_images`** (top-level, optional; added in 0.2.0). Maps an image repository to the package its release tags are versions of (`"langflowai/langflow": "langflow"`), so a Dockerfile `FROM` or a YAML `image:` line is scanned like a pin. Only tags that start with a full `X.Y.Z` are read as versions; older tool builds ignore the key.
 - **Catch-all advisories** (e.g. LD150) may omit `cve`/`cvss_score` and instead set an explicit `severity_override`; the engine treats a missing `cvss_score` as "override required."
 

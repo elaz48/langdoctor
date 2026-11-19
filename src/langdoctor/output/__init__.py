@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from ..finding import SEVERITY_ORDER, Finding
+from ..finding import SEVERITY_ORDER, Finding, Reachability
 
 # C0 and C1 control characters except tab and newline: ESC, BEL, CSI, ...
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
@@ -55,7 +55,45 @@ def finding_to_dict(f: Finding) -> dict:
         "cvss_score": f.cvss_score,
         "heuristic": f.heuristic,
         "exploited_in_the_wild": f.exploited_in_the_wild,
+        "reachability": _reachability_to_dict(f.reachability),
     }
+
+
+def _reachability_to_dict(evidence: Reachability | None) -> dict | None:
+    if evidence is None:
+        return None
+    return {
+        "reachable": evidence.reachable,
+        "symbols": list(evidence.symbols),
+        "uses": [{"file": u.file, "line": u.line, "symbol": u.symbol} for u in evidence.uses],
+        "total_uses": evidence.total_uses,
+        "files_searched": evidence.files_searched,
+        "files_unparsed": evidence.files_unparsed,
+    }
+
+
+def symbol_name(symbol: str) -> str:
+    """`pkg.module:Name` -> `Name`; a bare module stays as it is."""
+    return symbol.rpartition(":")[2]
+
+
+def describe_reachability(evidence: Reachability) -> str:
+    """One line for a human: where the vulnerable API is used, or that it is not."""
+    if evidence.uses:
+        first = evidence.uses[0]
+        others = max(evidence.total_uses, len(evidence.uses)) - 1
+        more = f", +{others} more" if others else ""
+        return f"used at {first.file}:{first.line} ({symbol_name(first.symbol)}{more})"
+    names = ", ".join(dict.fromkeys(symbol_name(s) for s in evidence.symbols))
+    files = "file" if evidence.files_searched == 1 else "files"
+    searched = f"{evidence.files_searched} Python {files}"
+    if evidence.files_unparsed:
+        # Not "not imported": the unread code may be where the import is.
+        return (
+            f"no import found in {searched}, but {evidence.files_unparsed} more could not "
+            f"be read: {names}"
+        )
+    return f"not imported in {searched}: {names}"
 
 
 def summarize(findings: list[Finding], suppressed: int = 0) -> dict:

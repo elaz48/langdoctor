@@ -124,9 +124,12 @@ def _builder_compile_calls(tree: ast.Module | None) -> list[ast.Call]:
     an imported module (re.compile, torch.compile): a module is never a builder.
     Nodes parse text with regexes all the time, so those were false positives.
     """
+    candidates = find_calls(tree, "compile")
+    if not candidates:
+        return []
     modules = imported_module_names(tree)
     calls = []
-    for call in find_calls(tree, "compile"):
+    for call in candidates:
         receiver = call.func.value if isinstance(call.func, ast.Attribute) else None
         if receiver is None:
             continue  # bare compile(...): the builtin, or `from re import compile`

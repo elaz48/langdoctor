@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..finding import Finding
-from . import printable
+from . import describe_reachability, printable
 
 SEV_ORDER = ["critical", "high", "medium", "low", "info"]
 SEV_STYLE = {
@@ -102,6 +102,10 @@ def _render_finding(console: Console, f: Finding) -> None:
         meta.append(ids)
     if meta:
         console.print(Text(printable("  " + "  ·  ".join(meta)), style="dim"))
+
+    if f.reachability:
+        style = "bold" if f.reachability.reachable else "dim"
+        console.print(Text(printable(f"  ↳ {describe_reachability(f.reachability)}"), style=style))
 
     if f.fix:
         console.print(Text(f"  → {printable(f.fix)}", style="green"))

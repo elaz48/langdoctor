@@ -25,6 +25,7 @@
       "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.checkpoint.sqlite:SqliteSaver", "langgraph.checkpoint.sqlite.aio:AsyncSqliteSaver"],
       "title": "SQL injection via metadata filter key in SQLite checkpointer",
       "detail": "User-controlled filter keys are interpolated into checkpoint queries without parameterization, enabling SQL injection that can chain to RCE via forged checkpoint rows.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2025-67644", "https://github.com/advisories/GHSA-9rwj-6rc7-p77c"]
@@ -118,6 +119,7 @@
       "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:H",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.cache"],
       "title": "BaseCache deserialization of untrusted data may lead to RCE",
       "detail": "The BaseCache implementation deserializes untrusted cached data, which can lead to remote code execution.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-27794", "https://github.com/advisories/GHSA-mhr3-j7m5-c7c9"]
@@ -148,6 +150,7 @@
       "cvss_vector": null,
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.store.sqlite"],
       "title": "SQL injection in the SQLite store implementation",
       "detail": "The SQLite store implementation is vulnerable to SQL injection. Distinct from LD101 (fixed 3.0.1): a project pinned between 2.0.11 and 3.0.1 is safe from this one but still exposed to LD101.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2025-8709", "https://github.com/advisories/GHSA-4h97-wpxp-3757"]
@@ -163,6 +166,7 @@
       "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.store.sqlite"],
       "title": "SQL injection via filter key in SqliteStore",
       "detail": "Filter keys passed to SqliteStore are interpolated into queries unsafely, enabling SQL injection (public PoC).",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2025-64104", "https://github.com/advisories/GHSA-7p73-8jqx-23r8"]
@@ -294,6 +298,7 @@
       "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.store.sqlite"],
       "title": "Namespace prefix matching crosses segment boundaries in the SQLite store",
       "detail": "Hierarchical namespaces are flattened to a dot-joined string and scoped reads match it with LIKE '<path>%'. Because LIKE ignores the '.' separator, a scoped search or list_namespaces also returns sibling namespaces sharing leading characters (e.g. namespace ('memories','alice') also matches 'alice_admin'), leaking cross-tenant state. Same CVE as LD119, which covers the Postgres store.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-71433", "https://github.com/advisories/GHSA-47pj-3jcm-6whg"]
@@ -414,6 +419,11 @@
       "cvss_vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": [
+        "langchain_community.document_loaders:EverNoteLoader",
+        "langchain.document_loaders:EverNoteLoader",
+        "langchain_classic.document_loaders:EverNoteLoader"
+      ],
       "title": "XXE in EverNoteLoader via unguarded iterparse()",
       "detail": "EverNoteLoader parses .enex exports with etree.iterparse() without disabling external entity resolution, so a crafted note export can read local files or force outbound requests when it is ingested. Fixed in 0.3.27. Sources disagree on the affected version: the huntr write-up (mirrored by NVD) names 0.3.63, but langchain-community has no such release — its 0.3 line stops at 0.3.31 — so that number is the reporter's langchain-core version, not this package's. GHSA and OSV agree on < 0.3.27, which is what the range above compares against. NVD carries no primary score (status Deferred); 7.5 is the huntr CNA base score.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2025-6984", "https://github.com/advisories/GHSA-pc6w-59fv-rh23", "https://huntr.com/bounties/a6b521cf-258c-41c0-9edb-d8ef976abb2a"]
@@ -429,6 +439,14 @@
       "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": [
+        "langchain_community.document_loaders:SitemapLoader",
+        "langchain_community.document_loaders:DocusaurusLoader",
+        "langchain.document_loaders:SitemapLoader",
+        "langchain.document_loaders:DocusaurusLoader",
+        "langchain_classic.document_loaders:SitemapLoader",
+        "langchain_classic.document_loaders:DocusaurusLoader"
+      ],
       "title": "SSRF via nested sitemap entries in SitemapLoader",
       "detail": "SitemapLoader.parse_sitemap enforces the documented restrict_to_same_domain control only on leaf <url> entries. The loop over nested <sitemap> index entries passes each child <loc> straight to scrape_all(), so a sitemap index pointing at an internal address is fetched despite the restriction. NO RELEASED FIX: upstream closed the issue on 2026-08-13, but no langchain-community release carries it — 0.4.2 (2026-05-22) is still the newest, which is why this advisory has no fix version and langdoctor prints no upgrade line. Mitigate by not pointing SitemapLoader at untrusted sitemaps and by restricting egress from the ingestion host. VulnCheck scores it 8.6 on CVSS 3.1 and 7.7 on CVSS 4.0; NVD has no primary score yet (status Received).",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-72848", "https://github.com/advisories/GHSA-vg8m-4p2q-gcjh", "https://www.vulncheck.com/advisories/langchain-community-sitemaploader-does-not-apply-restrict-to-same-domain-to-nested-sitemap-index-entries-allowing-server-side-request-forgery"]
@@ -444,6 +462,7 @@
       "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.store.sqlite"],
       "title": "Namespace labels containing '.' reach other namespaces (SQLite store)",
       "detail": "The SQLite store saves a namespace as its labels joined with '.', so ('tenant', 'bob') and ('tenant.bob',) are the same stored namespace. put() rejected labels containing '.', but get, search, delete, list_namespaces, their async variants and ops passed straight to batch/abatch did not — a caller who controls a namespace label can read, overwrite or delete another tenant's items. Follow-up to CVE-2026-71433 (LD118): 3.1.1 fixed that one but is still affected here. Fixed in 3.1.2, which requires langgraph-checkpoint 4.3.0. Same CVE as LD129 (Postgres store, fixed in 3.1.3). NVD has no primary score yet (status Awaiting Analysis); 6.0 is the GitHub CNA CVSS 4.0 base score.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-115883", "https://github.com/advisories/GHSA-6hmw-9432-67qq"]
@@ -489,6 +508,7 @@
       "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph.pregel.remote:RemoteGraph"],
       "title": "RemoteGraph v3 streaming passes unencoded thread ids to the SDK",
       "detail": "From langgraph 1.2.3, RemoteGraph v3 streaming passes config['configurable']['thread_id'] into threads.stream(...), and its dependency range admits the vulnerable langgraph-sdk 0.4.0–0.4.5 (LD130), whose unencoded path parameters let a crafted thread_id redirect an authenticated GET to another path on the server. Fixed in 1.2.14, which requires langgraph-sdk >= 0.4.6. Exploitable only when the installed langgraph-sdk is also affected and an attacker controls the thread_id; a project that already pins langgraph-sdk >= 0.4.6 is not exposed through this path. NVD has no primary score yet; 4.3 is the GitHub CNA CVSS 3.1 base score.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-118667", "https://github.com/advisories/GHSA-3fx2-cqw9-xr3c"]
@@ -504,6 +524,7 @@
       "cvss_vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:L/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
       "severity_override": null,
       "exploited_in_the_wild": false,
+      "symbols": ["langgraph_sdk:Auth"],
       "title": "Custom-auth decorators ignore actions= and skip fallback handlers",
       "detail": "The resource-scoped authorization decorators @auth.on.threads, @auth.on.assistants and @auth.on.crons ignore their actions= argument: a handler meant for, say, actions=['create'] is registered for every action on the resource. Because that resource-wide handler is selected before broader fallback handlers, authorization checks living in those fallbacks never run, and an authenticated user may read, update or delete another user's threads, assistants or crons. Only Python deployments that use actions= on these decorators are affected; a handler that itself enforces action, ownership and permission checks for every request stays safe. No workaround — upgrade to 0.4.4. NVD has no primary score yet (status Awaiting Analysis); 7.6 is the GitHub CNA CVSS 4.0 base score.",
       "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2026-104873", "https://github.com/advisories/GHSA-fvww-7h3r-vfhp"]

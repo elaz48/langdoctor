@@ -51,6 +51,23 @@ the vendor's release workflow that its tags are versions of that package:
 Langflow's `base-*` tags are `langflow-base` versions, a different line, which
 is why a prefixed tag is never read as a version.
 
+**Reachability entry points are data as well:** an advisory's optional
+`symbols` list (`"pkg.module:Name"` or `"pkg.module"`, matched by
+`reachability.py`). The rules, in order of importance:
+- **A wrong "not imported" is the failure that matters.** List symbols only
+  when the vendor advisory ties the issue to APIs an application has to import.
+  If the vulnerable code is also reached through a default, a method on a
+  common object, a string-keyed loader, or a hosting platform, leave the list
+  EMPTY — no claim beats an incomplete one. Most advisories stay empty.
+- Read the advisory text and the package source at an affected tag; do not
+  list from memory. GHSA's `vulnerable_functions` is empty for this ecosystem.
+- Declare the shallowest public import path (submodules match, parents do
+  not), and add legacy re-export paths and subclasses that reach the same code.
+- Reachability is evidence only: it must never change severity or exit code.
+- `reachable` is three-valued. When any Python could not be read (unparseable
+  file, notebook) and no use was found, it is `None`, the text must not say
+  "not imported", and the finding must not be demoted.
+
 `advisories.json` is **schema_version 2** (spec §5). Key rules:
 - Version applicability via `affected_ranges` (OSV-style `{introduced, fixed}`
   list, compared with `packaging.version`). `fixed_in` is a human summary ONLY —
@@ -74,6 +91,10 @@ is attacker-chosen. Rules that keep the gate standing:
 - **Parsers are total:** any TOML/JSON shape in, a list out — check types at
   each level instead of wrapping a parser in a catch-all, which would hide a
   real bug and silently drop a manifest (`test_manifest_parsers_accept_any_shape_of_data`).
+- **Checks look things up, they do not walk:** `analysis._index` gathers a
+  file's calls, imports and attribute nodes in one `ast.walk`; use
+  `find_calls` / `import_nodes` / `attribute_nodes` rather than walking the
+  tree again in a new check.
 - **Line patterns must be linear.** No unbounded group that can rescan to the
   end of the line; `containers.py` also skips lines over 4 KB. Time a new regex
   on a 100k-character worst case before shipping it.

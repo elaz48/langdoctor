@@ -21,6 +21,7 @@ from ..advisories import (
     normalize_name,
 )
 from ..finding import Finding
+from ..reachability import assess
 
 _UNREACHABLE_HIGH = "9999.0.0"
 
@@ -37,11 +38,14 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
     for adv in db.advisories:
         if adv.deprecated:
             continue  # kept for its permanent ID; its replacement fires instead
+        evidence = None  # searched once per advisory, and only if it fires
         for dep in by_name.get(normalize_name(adv.package), []):
             evaluated = _evaluate(dep, adv)
             if evaluated is None:
                 continue
             heuristic, target = evaluated
+            if evidence is None and adv.symbols:
+                evidence = assess(project, adv.symbols)
             hits.append(
                 (
                     adv,
@@ -62,6 +66,8 @@ def check_versions(project, db: AdvisoryDB | None = None) -> list[Finding]:
                         heuristic=heuristic,
                         exploited_in_the_wild=adv.exploited_in_the_wild,
                         cvss_score=adv.cvss_score,
+                        # an image is a deployed service, not code that imports
+                        reachability=None if getattr(dep, "image", None) else evidence,
                     ),
                 )
             )

@@ -6,11 +6,12 @@ import json
 
 from .. import __version__
 from ..finding import Finding
-from . import security_severity
+from . import security_severity, symbol_name
 
 _HOME = "https://langdoctor.dev"
 _SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
 
+_MAX_RELATED_LOCATIONS = 10
 # SARIF levels: error / warning / note / none.
 _SEVERITY_TO_LEVEL = {
     "critical": "error", "high": "error", "medium": "warning", "low": "note", "info": "note"
@@ -80,4 +81,18 @@ def _result(f: Finding) -> dict:
                 }
             }
         ]
+    if f.reachability:
+        result["properties"] = {"reachable": f.reachability.reachable}
+        if f.reachability.uses:
+            result["relatedLocations"] = [
+                {
+                    "id": index,
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": use.file},
+                        "region": {"startLine": use.line},
+                    },
+                    "message": {"text": f"uses {symbol_name(use.symbol)}"},
+                }
+                for index, use in enumerate(f.reachability.uses[:_MAX_RELATED_LOCATIONS])
+            ]
     return result

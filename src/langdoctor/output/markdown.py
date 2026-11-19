@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..finding import Finding
-from . import printable, summarize
+from . import describe_reachability, printable, summarize
 
 _SEVERITY_EMOJI = {
     "critical": "🟥", "high": "🟧", "medium": "🟨", "low": "🟦", "info": "⬜"
@@ -48,6 +48,8 @@ def render_markdown(
         title = _escape(f.title)
         if f.cve:
             title += f" ({f.cve})"
+        if f.reachability:
+            title += " — " + _escape(describe_reachability(f.reachability))
         lines.append(f"| {sev} | {f.id} | {loc} | {title} | {_escape(f.fix or '')} |")
 
     lines += ["", f"_advisories as of {db_date}_"]
