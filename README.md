@@ -162,7 +162,7 @@ resolve from PyPI.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/elaz48/langdoctor
-    rev: v0.1.7
+    rev: v0.1.8
     hooks:
       - id: langdoctor
 ```

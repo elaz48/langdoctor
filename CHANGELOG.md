@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-20
+
+Fixes only, no advisory data changes. The GitHub Action the README documented
+could not be resolved at all; it is now `elaz48/langdoctor@v0`, and the release
+pipeline that moves that tag is hardened. Two false positives are gone and
+large `node_modules` trees no longer slow a scan down.
+
 ### Fixed
 - **The documented GitHub Action could not be resolved.** The README, the
   website and the "all clear" panel all said `uses: elaz48/langdoctor@v1`, but
