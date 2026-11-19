@@ -142,7 +142,11 @@ stalled scan.
 - **A Python file nested too deeply to parse crashed the scan** with a
   traceback, or — when the parser ran out of memory instead — silently removed
   every hardcoded-key finding of the project. It is now treated like any
-  other file that does not parse.
+  other file that does not parse. This holds where the interpreter reports the
+  problem (Python 3.12 and later). Python 3.10 has no depth guard for some
+  expressions: a 100,000-deep attribute chain parses there on Linux and macOS
+  and overflows the interpreter's own stack on Windows, which ends the scan
+  with a crash — never with a clean result.
 - **Line numbers no longer drift after a form feed or a Unicode line
   separator** inside a string: lines are counted on newlines only, as editors
   and the Python tokenizer do.

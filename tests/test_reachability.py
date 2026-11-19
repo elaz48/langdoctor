@@ -6,8 +6,11 @@ complete for what it claims to see: static imports and module-attribute access.
 """
 
 import json
+import sys
 from dataclasses import replace
 from io import StringIO
+
+import pytest
 
 from langdoctor.advisories import load_db
 from langdoctor.checks.versions import check_versions
@@ -402,17 +405,21 @@ def test_the_count_of_uses_survives_the_cap(tmp_path):
     assert describe_reachability(result) == "used at app.py:2 (EverNoteLoader, +39 more)"
 
 
-def test_a_file_nested_absurdly_deep_never_breaks_the_search(tmp_path):
+@pytest.mark.skipif(
+    sys.version_info < (3, 12),
+    reason=(
+        "before 3.12 the parser has no depth guard for this: on 3.10 the chain parses on "
+        "Linux and macOS and overflows the interpreter's C stack on Windows, which no "
+        "Python code can catch"
+    ),
+)
+def test_a_file_nested_too_deeply_to_parse_is_just_unread(tmp_path):
     project = _project(tmp_path, {
         "app.py": "import os\n",
         "hostile.py": "x = langgraph" + ".a" * 100_000 + "\n",
     })
     result = assess(project, (EVERNOTE,))
-    # Python 3.12+ refuses to parse a chain this deep, and the file is then
-    # unread; 3.10 parses it, and it is searched like any other. Both are
-    # right. What must not happen is a crash, or a file that is neither.
-    assert (result.files_searched, result.files_unparsed) in {(1, 1), (2, 0)}
-    assert result.reachable is (None if result.files_unparsed else False)
+    assert (result.files_searched, result.files_unparsed, result.reachable) == (1, 1, None)
 
 
 # --- opt-in: findings whose API is not imported do not fail the build ---------
