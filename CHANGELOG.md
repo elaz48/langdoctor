@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-19
+
+Advisory deprecation support, used to retire LD112 in favor of LD133, plus an
+NVD baseline-drift source for the weekly advisory watcher (dev tooling — not
+part of the installed package) so LD150 cannot silently go stale a third time.
+
 ### Added
 - **Advisory watcher: NVD baseline-drift check.** The aggregate LD150 baseline
   went stale twice (0.1.4, 0.1.6) because IBM PSIRT publishes Langflow CVEs
@@ -367,7 +373,8 @@ Initial release.
 - Scanner `DEFAULT_EXCLUDES` matched any path component, silently excluding a
   top-level `.env` file and breaking LD402/LD403 detection.
 
-[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/elaz48/langdoctor/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/elaz48/langdoctor/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/elaz48/langdoctor/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/elaz48/langdoctor/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/elaz48/langdoctor/compare/v0.1.3...v0.1.4
