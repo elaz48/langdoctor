@@ -81,3 +81,40 @@ def test_json_summary_reports_suppressed_count():
 def test_markdown_shows_suppressed_in_all_clear():
     md = render_markdown([], "/p", "2026-07-04", suppressed=2)
     assert "2 suppressed" in md
+
+
+def _hostile_finding():
+    from langdoctor.finding import Finding
+
+    return Finding(
+        id="LD501", severity="medium", title="Dependencies are not pinned",
+        detail=(
+            "evil\x1b[2J\x1b]0;pwn\x07/ has no lockfile and 1 dependency(ies) are unpinned "
+            "(\x1b[31mx)"
+        ),
+        file="evil\x1b[2J<img src=x onerror=1>/requirements.txt",
+        fix="pin \x9b31mit",
+    )
+
+
+def test_console_output_carries_no_control_characters_from_the_repository():
+    from io import StringIO
+
+    from rich.console import Console
+
+    from langdoctor.output.console import render
+
+    buffer = StringIO()
+    render([_hostile_finding()], "/project", "2026-01-01",
+           console=Console(file=buffer, no_color=True, width=200))
+    out = buffer.getvalue()
+    assert not any(ch in out for ch in ("\x1b", "\x07", "\x9b"))
+    assert "/requirements.txt" in out and "has no lockfile" in out
+
+
+def test_markdown_output_neutralises_html_and_control_characters():
+    from langdoctor.output.markdown import render_markdown
+
+    out = render_markdown([_hostile_finding()], "/project", "2026-01-01")
+    assert "<img" not in out and "&lt;img" in out
+    assert not any(ch in out for ch in ("\x1b", "\x07", "\x9b"))

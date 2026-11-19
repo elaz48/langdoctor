@@ -13,6 +13,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..finding import Finding
+from . import printable
 
 SEV_ORDER = ["critical", "high", "medium", "low", "info"]
 SEV_STYLE = {
@@ -84,9 +85,9 @@ def _render_finding(console: Console, f: Finding) -> None:
         title_line.append("  [heuristic]", style="dim italic")
     console.print(title_line)
 
-    console.print(Text(f"  {f.title}", style="bold"))
+    console.print(Text(f"  {printable(f.title)}", style="bold"))
     if f.detail:
-        console.print(Text(f"  {f.detail}", style="dim"))
+        console.print(Text(f"  {printable(f.detail)}", style="dim"))
 
     meta: list[str] = []
     loc = f.file or ""
@@ -100,10 +101,10 @@ def _render_finding(console: Console, f: Finding) -> None:
             ids += " (" + ", ".join(f.aliases) + ")"
         meta.append(ids)
     if meta:
-        console.print(Text("  " + "  ·  ".join(meta), style="dim"))
+        console.print(Text(printable("  " + "  ·  ".join(meta)), style="dim"))
 
     if f.fix:
-        console.print(Text(f"  → {f.fix}", style="green"))
+        console.print(Text(f"  → {printable(f.fix)}", style="green"))
     console.print()
 
 

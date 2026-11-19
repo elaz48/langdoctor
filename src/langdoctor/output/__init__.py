@@ -5,7 +5,22 @@ console (Phase 1) + json / sarif / markdown (Phase 3).
 
 from __future__ import annotations
 
+import re
+
 from ..finding import SEVERITY_ORDER, Finding
+
+# C0 and C1 control characters except tab and newline: ESC, BEL, CSI, ...
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def printable(text: str) -> str:
+    """Drop control characters from text that can come from the scanned repo.
+
+    A directory or package name is attacker-chosen. Written to a terminal as
+    is, `\x1b[2J` clears the screen and `\x1b]0;...\x07` retitles the window;
+    without the control bytes the rest is just odd-looking text.
+    """
+    return _CONTROL_CHARS.sub("", text)
 
 # Fallback numeric CVSS-equivalent for code-pattern checks that have no real
 # CVSS score. Aligned to the advisory severity_buckets thresholds.

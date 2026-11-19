@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..finding import Finding
-from . import summarize
+from . import printable, summarize
 
 _SEVERITY_EMOJI = {
     "critical": "🟥", "high": "🟧", "medium": "🟨", "low": "🟦", "info": "⬜"
@@ -55,4 +55,6 @@ def render_markdown(
 
 
 def _escape(text: str) -> str:
-    return text.replace("|", "\\|").replace("\n", " ")
+    """Keep a cell one cell, and keep repository-chosen text from being markup:
+    `<` would open an HTML tag wherever the report is pasted."""
+    return printable(text).replace("|", "\\|").replace("\n", " ").replace("<", "&lt;")
