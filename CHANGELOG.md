@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-20
+
+langdoctor now sees how Langflow is actually deployed and whether a vulnerable
+API is actually used. Container images and manifests anywhere in the tree are
+dependency sources; a CVE finding says where the project imports the vulnerable
+API, or that it does not; Jupyter notebooks are read; and a check that crashes
+fails the run instead of passing for a clean scan. Three advisories are new
+(LD134-LD136), LD115 is deprecated, and four SQLite-store ranges are corrected.
+
 ### Added
 - **Reachability: is the vulnerable API imported?** An advisory can now list
   `symbols`, the public entry points an application must import for the
