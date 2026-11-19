@@ -402,13 +402,17 @@ def test_the_count_of_uses_survives_the_cap(tmp_path):
     assert describe_reachability(result) == "used at app.py:2 (EverNoteLoader, +39 more)"
 
 
-def test_a_file_too_deeply_nested_to_parse_is_just_unread(tmp_path):
+def test_a_file_nested_absurdly_deep_never_breaks_the_search(tmp_path):
     project = _project(tmp_path, {
         "app.py": "import os\n",
         "hostile.py": "x = langgraph" + ".a" * 100_000 + "\n",
     })
     result = assess(project, (EVERNOTE,))
-    assert (result.files_searched, result.files_unparsed) == (1, 1)
+    # Python 3.12+ refuses to parse a chain this deep, and the file is then
+    # unread; 3.10 parses it, and it is searched like any other. Both are
+    # right. What must not happen is a crash, or a file that is neither.
+    assert (result.files_searched, result.files_unparsed) in {(1, 1), (2, 0)}
+    assert result.reachable is (None if result.files_unparsed else False)
 
 
 # --- opt-in: findings whose API is not imported do not fail the build ---------
