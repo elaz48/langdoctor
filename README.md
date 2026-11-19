@@ -143,9 +143,14 @@ finding keeps its place in the list.
 
 This is a statement about imports, not a verdict:
 
-- **It never changes severity or the exit code.** A finding whose API is not
-  imported is still reported in full; it is only listed after the others of
-  the same severity.
+- **It never changes severity, and by default not the exit code either.** A
+  finding whose API is not imported is still reported in full; it is only
+  listed after the others of the same severity. If you want such findings to
+  stop failing your build, opt in with `--allow-unimported` (or
+  `allow-unimported = true`): they stay in the report, and the run says how
+  many were not counted. Only a conclusive "not imported" qualifies — not an
+  unknown, not a finding without entry points — and a known-exploited
+  vulnerability always counts.
 - **It sees** `from x import Name`, `import x.y as z` followed by `z.Name`, the
   legacy import paths that re-export the same class (`langchain.document_loaders`)
   and known subclasses (`DocusaurusLoader` for `SitemapLoader`).
@@ -265,6 +270,7 @@ Configure defaults in `pyproject.toml`; command-line flags take precedence.
 fail-on = "high"            # critical | high | medium | low | never
 ignore  = ["LD203", "LD302"]
 exclude = ["examples", "vendor"]
+allow-unimported = false    # true: a CVE whose API you do not import cannot fail the run
 ```
 
 Suppress a single finding inline — by LD id, CVE, or any alias:

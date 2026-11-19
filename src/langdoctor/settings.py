@@ -16,6 +16,7 @@ class Settings:
     fail_on: str | None = None
     ignore: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
+    allow_unimported: bool = False
 
 
 def load_settings(root) -> Settings:
@@ -28,4 +29,8 @@ def load_settings(root) -> Settings:
         fail_on=table.get("fail-on") or table.get("fail_on"),
         ignore=[str(x) for x in (table.get("ignore") or [])],
         exclude=[str(x) for x in (table.get("exclude") or [])],
+        # only a literal `true`: a stray string must not switch a gate off
+        allow_unimported=(
+            table.get("allow-unimported") is True or table.get("allow_unimported") is True
+        ),
     )

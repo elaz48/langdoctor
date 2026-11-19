@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files, but 2 more could not be read` — and the finding is not moved. JSON
   has a `reachability` object per finding (`reachable` is `true`, `false` or
   `null`); SARIF adds the use sites as related locations.
+  - Opt-in gate: `--allow-unimported` (or `allow-unimported = true` under
+    `[tool.langdoctor]`) keeps a finding whose API is conclusively not imported
+    from failing the run. It is still reported, and the console and the JSON
+    summary (`not_counted`) say how many were let through. An unknown result,
+    a finding without entry points and any known-exploited vulnerability count
+    as before.
   - 10 advisories list entry points, each checked against the vendor advisory
     text and the package source at an affected tag (2026-11-19): LD101
     (`SqliteSaver`, `AsyncSqliteSaver`), LD107 (`langgraph.cache`), LD109 /

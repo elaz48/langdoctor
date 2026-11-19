@@ -66,10 +66,37 @@ def _considered(findings: list[Finding], strict: bool) -> list[Finding]:
     return [f for f in findings if strict or not f.heuristic]
 
 
-def exit_code_for(findings: list[Finding], fail_on: str = "high", strict: bool = False) -> int:
+def _exempt(finding: Finding) -> bool:
+    """Under --allow-unimported: reported, but does not fail the build.
+
+    Only a conclusive "not imported" qualifies — never an unknown, never a
+    finding no claim was made about — and a known-exploited vulnerability
+    always counts, whatever the imports say.
+    """
+    return _not_imported(finding) and not finding.exploited_in_the_wild
+
+
+def exit_code_for(
+    findings: list[Finding], fail_on: str = "high", strict: bool = False,
+    allow_unimported: bool = False,
+) -> int:
     if fail_on == "never":
         return 0
     threshold = SEVERITY_ORDER.get(fail_on, SEVERITY_ORDER["high"])
-    if any(f.severity_rank >= threshold for f in _considered(findings, strict)):
-        return 1
+    for finding in _considered(findings, strict):
+        if finding.severity_rank >= threshold and not (allow_unimported and _exempt(finding)):
+            return 1
     return 0
+
+
+def not_counted(
+    findings: list[Finding], fail_on: str = "high", strict: bool = False,
+    allow_unimported: bool = False,
+) -> list[Finding]:
+    """The findings that would have failed the run but for --allow-unimported."""
+    if not allow_unimported or fail_on == "never":
+        return []
+    threshold = SEVERITY_ORDER.get(fail_on, SEVERITY_ORDER["high"])
+    return [
+        f for f in _considered(findings, strict) if f.severity_rank >= threshold and _exempt(f)
+    ]

@@ -32,7 +32,7 @@ def _make_console() -> Console:
 
 def render(
     findings, project_root, db_date, suppressed: int = 0,
-    console: Console | None = None, quiet: bool = False,
+    console: Console | None = None, quiet: bool = False, not_counted: int = 0,
 ):
     console = console or _make_console()
 
@@ -47,6 +47,13 @@ def render(
         for finding in [f for f in findings if f.severity == severity]:
             _render_finding(console, finding)
 
+    if not_counted:
+        noun = "finding" if not_counted == 1 else "findings"
+        console.print(Text(
+            f"{not_counted} {noun} not counted towards the exit code: the vulnerable API is "
+            "not imported (--allow-unimported)",
+            style="dim",
+        ))
     if not quiet:
         console.print(Text(f"advisories as of {db_date}", style="dim"))
 

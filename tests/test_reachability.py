@@ -409,3 +409,82 @@ def test_a_file_too_deeply_nested_to_parse_is_just_unread(tmp_path):
     })
     result = assess(project, (EVERNOTE,))
     assert (result.files_searched, result.files_unparsed) == (1, 1)
+
+
+# --- opt-in: findings whose API is not imported do not fail the build ---------
+
+def _evidence(uses=0, unparsed=0):
+    from langdoctor.finding import Reachability, Use
+
+    return Reachability(
+        symbols=(EVERNOTE,), uses=tuple(Use("a.py", 1, EVERNOTE) for _ in range(uses)),
+        files_searched=3, files_unparsed=unparsed, total_uses=uses,
+    )
+
+
+def _finding(**overrides):
+    from langdoctor.finding import Finding
+
+    return Finding(id="LD126", severity="high", title="t", **overrides)
+
+
+def test_allow_unimported_exempts_only_a_conclusive_not_imported():
+    from langdoctor.engine import exit_code_for
+
+    not_imported = _finding(reachability=_evidence())
+    assert exit_code_for([not_imported]) == 1  # the default never changes
+    assert exit_code_for([not_imported], allow_unimported=True) == 0
+
+    for still_counts in (
+        _finding(reachability=_evidence(uses=1)),      # it is used
+        _finding(reachability=_evidence(unparsed=1)),  # unknown: some code was not read
+        _finding(),                                    # no claim was made at all
+        _finding(reachability=_evidence(), exploited_in_the_wild=True),  # KEV always counts
+    ):
+        assert exit_code_for([still_counts], allow_unimported=True) == 1
+        assert exit_code_for([not_imported, still_counts], allow_unimported=True) == 1
+
+
+def test_allow_unimported_from_the_command_line_and_from_config(tmp_path, capsys):
+    from langdoctor import cli
+
+    _project(tmp_path, {
+        "requirements.txt": "langgraph-checkpoint-sqlite==2.0.10\n",
+        "app.py": "import os\n",
+    })
+    assert cli.main([str(tmp_path)]) == 1
+    capsys.readouterr()
+
+    assert cli.main([str(tmp_path), "--allow-unimported"]) == 0
+    out = capsys.readouterr().out
+    assert "LD101" in out  # still reported in full
+    assert "3 findings not counted towards the exit code" in out
+
+    assert cli.main([str(tmp_path), "--allow-unimported", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["summary"]["not_counted"] == 3
+
+    # the same project, once the saver is imported
+    (tmp_path / "db.py").write_text(
+        "from langgraph.checkpoint.sqlite import SqliteSaver\n", encoding="utf-8"
+    )
+    assert cli.main([str(tmp_path), "--allow-unimported"]) == 1
+    capsys.readouterr()
+    (tmp_path / "db.py").unlink()
+
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.langdoctor]\nallow-unimported = true\n", encoding="utf-8"
+    )
+    assert cli.main([str(tmp_path)]) == 0
+
+
+def test_without_the_switch_nothing_is_marked_as_not_counted(tmp_path, capsys):
+    from langdoctor import cli
+
+    _project(tmp_path, {
+        "requirements.txt": "langgraph-checkpoint-sqlite==2.0.10\n",
+        "app.py": "import os\n",
+    })
+    assert cli.main([str(tmp_path)]) == 1
+    assert "not counted" not in capsys.readouterr().out
+    assert cli.main([str(tmp_path), "--format", "json"]) == 1
+    assert json.loads(capsys.readouterr().out)["summary"]["not_counted"] == 0

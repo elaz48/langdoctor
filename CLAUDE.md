@@ -63,7 +63,10 @@ is why a prefixed tag is never read as a version.
   list from memory. GHSA's `vulnerable_functions` is empty for this ecosystem.
 - Declare the shallowest public import path (submodules match, parents do
   not), and add legacy re-export paths and subclasses that reach the same code.
-- Reachability is evidence only: it must never change severity or exit code.
+- Reachability is evidence only: by default it must never change severity or
+  exit code. The one opt-in, `--allow-unimported`, exempts only a conclusive
+  `reachable is False`, never a KEV finding, and always says how many findings
+  it let through.
 - `reachable` is three-valued. When any Python could not be read (unparseable
   file, notebook) and no use was found, it is `None`, the text must not say
   "not imported", and the finding must not be demoted.

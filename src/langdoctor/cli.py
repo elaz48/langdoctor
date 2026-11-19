@@ -16,7 +16,7 @@ import sys
 from . import __version__
 from .advisories import load_db
 from .checks import all_checks
-from .engine import exit_code_for, run_scan
+from .engine import exit_code_for, not_counted, run_scan
 from .output.console import render
 from .output.json_out import render_json
 from .output.markdown import render_markdown
@@ -52,6 +52,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--strict", action="store_true", help="let heuristic findings affect the exit code"
+    )
+    parser.add_argument(
+        "--allow-unimported", action="store_true",
+        help=(
+            "do not fail on a CVE finding whose vulnerable API is not imported anywhere in "
+            "the project (it is still reported; known-exploited ones always count)"
+        ),
     )
     parser.add_argument(
         "--ignore", default="", help="comma-separated check IDs / CVEs / aliases to suppress"
@@ -91,19 +98,26 @@ def main(argv: list[str] | None = None) -> int:
 
     db = load_db()
     result = run_scan(project, ignore=ignore)
-    _emit(result.findings, project.root, db.updated, args, result.suppressed)
-    return exit_code_for(result.findings, fail_on=fail_on, strict=args.strict)
+    allow_unimported = args.allow_unimported or settings.allow_unimported
+    exempt = len(not_counted(result.findings, fail_on, args.strict, allow_unimported))
+    _emit(result.findings, project.root, db.updated, args, result.suppressed, exempt)
+    return exit_code_for(
+        result.findings, fail_on=fail_on, strict=args.strict, allow_unimported=allow_unimported
+    )
 
 
-def _emit(findings, project_root, db_date, args, suppressed: int) -> None:
+def _emit(findings, project_root, db_date, args, suppressed: int, exempt: int = 0) -> None:
     if args.format == "json":
-        print(render_json(findings, project_root, db_date, suppressed))
+        print(render_json(findings, project_root, db_date, suppressed, not_counted=exempt))
     elif args.format == "sarif":
         print(render_sarif(findings, project_root, db_date, suppressed))
     elif args.format == "markdown":
         print(render_markdown(findings, project_root, db_date, suppressed))
     else:
-        render(findings, project_root, db_date, suppressed=suppressed, quiet=args.quiet)
+        render(
+            findings, project_root, db_date, suppressed=suppressed, quiet=args.quiet,
+            not_counted=exempt,
+        )
 
 
 def _list_checks() -> int:
