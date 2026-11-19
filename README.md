@@ -136,10 +136,12 @@ or, when nothing in the scanned tree imports it:
   ↳ not imported in 14 Python files: EverNoteLoader
 ```
 
-If some Python could not be read — a file your interpreter cannot parse, or a
-Jupyter notebook, which is not scanned — the line says so instead
-(`no import found in 14 Python files, but 2 more could not be read`) and the
-finding keeps its place in the list.
+Jupyter notebooks are searched as well, and a use found in one is reported on
+its real line in the `.ipynb` file. If some Python could not be read — a file
+your interpreter cannot parse, a notebook cell with a syntax error, a notebook
+saved in a layout that cannot be followed line by line — the line says so
+instead (`no import found in 14 Python files, but 2 more could not be read`)
+and the finding keeps its place in the list.
 
 This is a statement about imports, not a verdict:
 
@@ -180,6 +182,11 @@ vendor advisory and the package source. JSON output carries it as
   private registry (`registry.corp/proxy/langflowai/langflow`) is recognised too.
 - **Python sources** for the code-pattern checks, and `.github/workflows` for
   `LD502`.
+- **Jupyter notebooks**, for hardcoded keys (`LD401`) and for the import search
+  above. Line magics and shell escapes are stepped over, `%%bash`-style cells
+  are skipped, and findings carry the line number of the `.ipynb` file itself.
+  The production-readiness checks leave notebooks alone: a notebook is not
+  deployed code.
 
 A floating tag (`latest`) names no version, and a `base-*` tag carries the
 `langflow-base` version rather than Langflow's, so for those only the

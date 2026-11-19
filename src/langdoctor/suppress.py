@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from .finding import Finding
+from .lines import split_lines
 
 _DIRECTIVE = re.compile(r"#\s*langdoctor:\s*ignore(?:\s*=\s*([\w,\-. ]+))?", re.IGNORECASE)
 
@@ -35,7 +36,7 @@ def inline_suppressed(project, finding: Finding, cache: dict) -> bool:
     if lines is None:
         try:
             text = (project.root / finding.file).read_text(encoding="utf-8", errors="replace")
-            lines = text.splitlines()
+            lines = split_lines(text)  # the same line numbers the finding was given
         except OSError:
             lines = []
         cache[finding.file] = lines

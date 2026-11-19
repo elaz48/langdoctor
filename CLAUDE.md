@@ -36,6 +36,11 @@ analysis, frameworks other than LangChain/LangGraph/Langflow.
   and their `-r` includes, pyproject, uv/poetry/pdm/Pipfile/pylock lockfiles)
   plus container images (`containers.py`: Dockerfile `FROM`, YAML `image:`).
   An image is an install of a package at the version its tag names.
+- **Notebooks** (`notebooks.py`) are sources for LD401 and reachability only,
+  via `load_notebook_sources`; `load_sources` stays `.py`-only so the
+  production-readiness checks never fire on a notebook. Statements keep the
+  `.ipynb` file's own line numbers; a notebook that cannot be laid out that way
+  is `partial` (unread), never guessed at.
 - Keep dependencies minimal and pure-Python: `rich`, `packaging`,
   `tomli` (only < 3.11; use stdlib `tomllib` on 3.11+), stdlib `ast`.
 
@@ -98,6 +103,12 @@ is attacker-chosen. Rules that keep the gate standing:
   file's calls, imports and attribute nodes in one `ast.walk`; use
   `find_calls` / `import_nodes` / `attribute_nodes` rather than walking the
   tree again in a new check.
+- **A file that cannot be parsed is unread, not fatal:** catch `SyntaxError`,
+  `ValueError`, `RecursionError` AND `MemoryError` around `ast.parse` /
+  `compile` / `json.loads` of repository content. An uncaught one is swallowed
+  by the engine's per-check guard and silently removes that check's findings.
+- **Count lines with `lines.split_lines`,** never `str.splitlines()`, wherever
+  a line number is reported or looked up.
 - **Line patterns must be linear.** No unbounded group that can rescan to the
   end of the line; `containers.py` also skips lines over 4 KB. Time a new regex
   on a 100k-character worst case before shipping it.

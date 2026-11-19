@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .advisories import normalize_name
+from .lines import split_lines
+from .notebooks import UNREAD, Notebook, read_notebook
+
+# A notebook this large is mostly embedded output; loading it is not worth a scan's time.
+MAX_NOTEBOOK_BYTES = 10 * 1024 * 1024
 
 
 @dataclass
@@ -21,6 +26,7 @@ class SourceFile:
     text: str
     lines: list[str]
     tree: ast.Module | None
+    partial: bool = False  # a notebook with code that could not be read
 
 
 def load_sources(project) -> list[SourceFile]:
@@ -32,14 +38,44 @@ def load_sources(project) -> list[SourceFile]:
         text = _read(path)
         try:
             tree: ast.Module | None = ast.parse(text)
-        except (SyntaxError, ValueError, RecursionError):
-            # RecursionError: an expression nested deeper than the parser can
-            # follow. Like any other file that does not parse, it is unread.
+        except (SyntaxError, ValueError, RecursionError, MemoryError):
+            # RecursionError / MemoryError: an expression nested deeper than the
+            # parser can follow. Like any file that does not parse, it is
+            # unread — it must not take the check that asked for it down.
             tree = None
-        sources.append(SourceFile(path, _rel(path, project.root), text, text.splitlines(), tree))
+        sources.append(SourceFile(path, _rel(path, project.root), text, split_lines(text), tree))
     with contextlib.suppress(AttributeError, TypeError):  # pragma: no cover - defensive
         project._ld_sources = sources
     return sources
+
+
+def load_notebook_sources(project) -> list[SourceFile]:
+    """The project's notebooks, as sources whose line numbers are those of the
+    .ipynb files. Kept apart from `load_sources`: only the secret check and the
+    reachability search read notebooks — the production-readiness checks are
+    about deployed code."""
+    cached = getattr(project, "_ld_notebooks", None)
+    if cached is not None:
+        return cached
+    sources: list[SourceFile] = []
+    for path in getattr(project, "notebook_files", []):
+        notebook = _load_notebook(path)
+        sources.append(SourceFile(
+            path, _rel(path, project.root), notebook.text, list(notebook.lines),
+            notebook.tree, notebook.partial,
+        ))
+    with contextlib.suppress(AttributeError, TypeError):  # pragma: no cover - defensive
+        project._ld_notebooks = sources
+    return sources
+
+
+def _load_notebook(path: Path) -> Notebook:
+    try:
+        if path.stat().st_size > MAX_NOTEBOOK_BYTES:
+            return UNREAD
+    except OSError:
+        return UNREAD
+    return read_notebook(_read(path))
 
 
 def read_project_file(project, rel: str) -> str:

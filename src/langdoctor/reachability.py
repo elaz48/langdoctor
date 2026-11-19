@@ -26,7 +26,7 @@ import contextlib
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
-from .analysis import attribute_nodes, import_nodes, load_sources
+from .analysis import attribute_nodes, import_nodes, load_notebook_sources, load_sources
 from .finding import Reachability, Use
 
 _MAX_USES = 25  # enough to act on; a report does not need every call site
@@ -127,15 +127,15 @@ def _project_imports(project) -> tuple[list[_FileImports], int]:
     if cached is not None:
         return cached
     files: list[_FileImports] = []
-    # A notebook is Python this scan does not read. Counting it as unread keeps
-    # a project whose LangChain code lives in notebooks from being told that
-    # nothing imports the API.
-    unparsed = sum(1 for rel in project.present_files if rel.endswith(".ipynb"))
-    for source in load_sources(project):
+    unparsed = 0
+    # Notebooks are searched too: a lot of LangChain code lives in them.
+    for source in [*load_sources(project), *load_notebook_sources(project)]:
         if source.tree is None:
             unparsed += 1
-        else:
-            files.append(_file_imports(source.rel, source.tree))
+            continue
+        files.append(_file_imports(source.rel, source.tree))
+        if source.partial:
+            unparsed += 1  # what could be read was searched; the rest is unknown
     result = (files, unparsed)
     with contextlib.suppress(AttributeError, TypeError):  # pragma: no cover - defensive
         project._ld_imports = result

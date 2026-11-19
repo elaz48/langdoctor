@@ -354,11 +354,11 @@ def test_a_name_bound_by_two_imports_stands_for_both(tmp_path):
     assert [line for line, _ in _uses(tmp_path, code, saver)] == [3]
 
 
-def test_notebooks_are_code_that_was_not_read(tmp_path):
+def test_a_notebook_that_cannot_be_read_is_code_that_was_not_searched(tmp_path):
     project = _project(tmp_path, {
         "app.py": "import os\n",
-        "explore.ipynb": '{"cells": []}',
-        "docs/demo.ipynb": '{"cells": []}',
+        "explore.ipynb": "{ not a notebook",
+        "docs/demo.ipynb": '{"worksheets": []}',
     })
     result = assess(project, (EVERNOTE,))
     assert (result.files_searched, result.files_unparsed, result.reachable) == (1, 2, None)

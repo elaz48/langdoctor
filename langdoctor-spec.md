@@ -53,6 +53,7 @@ langdoctor/
 │   ├── scanner.py            # project discovery: manifests anywhere in the tree, python sources
 │   ├── containers.py         # image references in Dockerfiles / YAML (added in 0.2.0)
 │   ├── reachability.py       # is an advisory's `symbols` list imported by the project?
+│   ├── notebooks.py          # .ipynb code cells as Python, on the file's own line numbers
 │   ├── engine.py             # runs all registered checks, collects Findings
 │   ├── finding.py            # Finding dataclass: id, severity, title, detail, file, line, fix, refs
 │   ├── checks/

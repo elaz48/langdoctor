@@ -41,6 +41,7 @@ class Project:
     root: Path
     dependencies: list[Dependency] = field(default_factory=list)
     python_files: list[Path] = field(default_factory=list)
+    notebook_files: list[Path] = field(default_factory=list)
     present_files: set[str] = field(default_factory=set)
     pyproject: dict | None = None
 
@@ -50,6 +51,7 @@ class Project:
 DEFAULT_EXCLUDES = {
     ".git", ".venv", "venv", "virtualenv", "node_modules", "build", "dist",
     "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", ".tox", "site-packages",
+    ".ipynb_checkpoints",
 }
 
 
@@ -86,6 +88,8 @@ def _discover_files(root: Path, excludes: set[str], project: Project) -> None:
             project.present_files.add(path.relative_to(root).as_posix())
             if path.suffix == ".py":
                 project.python_files.append(path)
+            elif path.suffix == ".ipynb":
+                project.notebook_files.append(path)
 
 
 # Lockfiles that are TOML with [[package]] name/version tables.

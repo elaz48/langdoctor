@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ..analysis import load_sources
+from ..analysis import load_notebook_sources, load_sources
 from ..finding import Finding
 from . import register_check
 
@@ -25,7 +25,8 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
 )
 def hardcoded_secrets(project) -> list[Finding]:
     findings = []
-    for sf in load_sources(project):
+    # Notebooks too: a key pasted into a cell is as leaked as one in a module.
+    for sf in [*load_sources(project), *load_notebook_sources(project)]:
         for lineno, line in enumerate(sf.lines, start=1):
             # Inline `# langdoctor: ignore` is applied centrally by the engine.
             for label, pattern in _SECRET_PATTERNS:

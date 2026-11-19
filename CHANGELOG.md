@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   does not (`↳ not imported in 14 Python files: EverNoteLoader`). It is
   evidence, not a verdict: severity and exit code are untouched, and a
   not-imported finding is only listed after the others of its severity. When
-  some Python could not be read (a file the interpreter rejects, a Jupyter
-  notebook), the result is reported as unknown — `no import found in 14 Python
+  some Python could not be read (a file the interpreter rejects, a notebook
+  that cannot be followed), the result is reported as unknown — `no import found in 14 Python
   files, but 2 more could not be read` — and the finding is not moved. JSON
   has a `reachability` object per finding (`reachable` is `true`, `false` or
   `null`); SARIF adds the use sites as related locations.
@@ -43,6 +43,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     request tools).
   - The GitHub Advisory Database lists no vulnerable functions for any of
     these advisories; the entry points are langdoctor's own curation.
+- **Jupyter notebooks are read.** The hardcoded-key check (LD401) and the
+  reachability search now look inside `.ipynb` code cells — where a great deal
+  of LangChain code, and many pasted API keys, actually live. Every statement
+  keeps the line number it has in the `.ipynb` file, so a finding opens at the
+  right place, GitHub can annotate it, and an inline `# langdoctor: ignore`
+  comment in the cell works. Line magics and `!shell` lines are stepped over,
+  cells that are certainly not Python (`%%bash`, `%%sql`) are skipped, every
+  other cell magic's body is read as Python, top-level `await` is accepted.
+  Anything that could not be read — a cell that does not parse, a notebook
+  that is minified or otherwise not one-line-per-source-line — makes the
+  notebook count as not fully read rather than be guessed at. The
+  production-readiness checks (LD2xx, LD3xx) do not read notebooks, and
+  `.ipynb_checkpoints` is skipped.
 - **Container images are a dependency source.** A Dockerfile `FROM` or a
   compose / Kubernetes `image:` line that names an official Langflow image
   (`langflowai/langflow`, `-backend`, `-ep`, `-all`, `-nightly`, and their
@@ -102,7 +115,12 @@ stalled scan.
   prompt and chain/agent *configuration* loaders. Its range is unchanged: those
   loaders ship in the 0.x wheels, the fixed middleware only in 1.x.
 - **A Python file nested too deeply to parse crashed the scan** with a
-  traceback. It is now treated like any other file that does not parse.
+  traceback, or — when the parser ran out of memory instead — silently removed
+  every hardcoded-key finding of the project. It is now treated like any
+  other file that does not parse.
+- **Line numbers no longer drift after a form feed or a Unicode line
+  separator** inside a string: lines are counted on newlines only, as editors
+  and the Python tokenizer do.
 
 ### Changed
 - **Large codebases scan about five times faster.** Every check walked each
