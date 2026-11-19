@@ -4,10 +4,20 @@ name: Release
 # The trusted publisher is configured for: repo elaz48/langdoctor,
 # workflow release.yml, environment pypi. Those three MUST NOT change or
 # publishing will fail.
+#
+#   test -> build -> publish -> github-release
+#                           \-> major-tag
+#
+# Only `publish` can mint the PyPI token, and it runs no build tool and no
+# shell: it downloads the files `build` produced and hands them to the PyPA
+# publisher. Every action is pinned to a commit SHA; the comment after each one
+# names the release that SHA is. tests/test_repo_consistency.py enforces both.
 
 on:
   push:
-    tags: ["v*"]
+    # Release tags only (vX.Y.Z). The major tag (v0) is a tag too, and pushing
+    # it by hand must not start a release.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: read
@@ -22,26 +32,36 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev]"
       - run: pytest -q
 
-  publish:
+  build:
     needs: test
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write   # OIDC token for PyPI Trusted Publishing
-      contents: write   # create the GitHub Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          fetch-depth: 0   # the main-branch guard walks history
+          persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.12"
+
+      - name: Guard — the tagged commit must be on main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main. Push main first, or merge the commit."
+            exit 1
+          fi
 
       - name: Guard — tag must equal package __version__
         run: |
@@ -61,12 +81,46 @@ jobs:
           python -m pip install uv
           uv build
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC token for PyPI Trusted Publishing, and nothing else
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
       - name: Publish to PyPI (Trusted Publishing)
-        uses: pypa/gh-action-pypi-publish@release/v1  # langdoctor: ignore=LD502  (PyPA publisher; pin to a SHA for max hardening)
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
@@ -78,3 +132,33 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" dist/* \
             --title "${GITHUB_REF_NAME}" \
             --notes "$NOTES"
+
+  # `uses: elaz48/langdoctor@v0` resolves through the major tag. It moves in a
+  # job of its own, once the release is installable from PyPI: the step that
+  # pushes a tag never shares a job with the PyPI publishing token, and it can
+  # be re-run alone if it fails.
+  major-tag:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the tag
+    steps:
+      # Credentials stay in the checkout here: the last step pushes with them.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - name: Move the major tag to this release
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          MAJOR="v${VER%%.*}"
+          # Only the newest release of a major line owns its tag: re-running an
+          # older release's workflow must not drag v0 backwards.
+          NEWEST="$(git ls-remote --tags --refs origin "refs/tags/${MAJOR}.*" \
+            | sed 's#.*refs/tags/##' \
+            | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | sort -V | tail -n 1)"
+          if [ "$NEWEST" != "$GITHUB_REF_NAME" ]; then
+            echo "$GITHUB_REF_NAME is not the newest $MAJOR release (${NEWEST:-none found}); $MAJOR stays where it is"
+            exit 0
+          fi
+          git tag -f "$MAJOR" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$MAJOR"
