@@ -14,8 +14,12 @@ from . import register_check
 
 _LOCKFILES = {"uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock"}
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-# `uses: owner/repo@ref` — capture owner, repo path, and the ref.
-_USES_RE = re.compile(r"""uses:\s*["']?([A-Za-z0-9._-]+)/([A-Za-z0-9._/-]+)@([^\s"']+)""")
+# `uses: owner/repo@ref` — capture owner, repo path, and the ref. Anchored to a
+# `uses:` KEY at the start of the line (after an optional list dash), so a
+# commented-out step or a comment that quotes a `uses:` line is not an action.
+_USES_RE = re.compile(
+    r"""^\s*(?:-\s+)?uses:\s*["']?([A-Za-z0-9._-]+)/([A-Za-z0-9._/-]+)@([^\s"']+)"""
+)
 # First-party / trusted orgs whose tag pins we don't flag.
 _TRUSTED_ORGS = {"actions", "github"}
 
@@ -55,7 +59,7 @@ def unpinned_github_actions(project) -> list[Finding]:
             continue
         text = read_project_file(project, rel)
         for lineno, line in enumerate(text.splitlines(), start=1):
-            match = _USES_RE.search(line)
+            match = _USES_RE.match(line)
             if not match:
                 continue
             owner, repo, ref = match.groups()

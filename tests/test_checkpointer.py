@@ -81,3 +81,105 @@ def test_ld204_clean_without_interrupts(tmp_path):
         "graph.py": "g = builder.compile()\n",
     })
     assert missing_checkpointer_with_interrupts(project) == []
+
+
+def test_ld204_ignores_module_level_compile_functions(tmp_path):
+    # Nodes routinely parse text with regexes: re.compile() in a file that also
+    # calls interrupt() is not a graph being compiled.
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "nodes.py": (
+            "import re\n"
+            "import torch as t\n"
+            "from langgraph.types import interrupt\n"
+            "PATTERN = re.compile(r'\\d+')\n"
+            "model = t.compile(model)\n"
+            "def node(state):\n"
+            "    return interrupt('ok?')\n"
+        ),
+    })
+    assert missing_checkpointer_with_interrupts(project) == []
+
+
+def test_ld204_ignores_builtin_compile(tmp_path):
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "nodes.py": (
+            "from langgraph.types import interrupt\n"
+            "code = compile('1 + 1', '<string>', 'eval')\n"
+            "def node(state):\n"
+            "    return interrupt('ok?')\n"
+        ),
+    })
+    assert missing_checkpointer_with_interrupts(project) == []
+
+
+def test_ld204_still_fires_next_to_a_regex(tmp_path):
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "graph.py": (
+            "import re\n"
+            "from langgraph.graph import StateGraph\n"
+            "from langgraph.types import interrupt\n"
+            "PATTERN = re.compile(r'\\d+')\n"
+            "def node(state):\n"
+            "    return interrupt('ok?')\n"
+            "graph = StateGraph(dict).compile()\n"
+        ),
+    })
+    findings = missing_checkpointer_with_interrupts(project)
+    assert [(f.id, f.line) for f in findings] == [("LD204", 7)]
+
+
+def test_ld204_fires_when_a_variable_reuses_an_imported_module_name(tmp_path):
+    # `graph` is imported as a module and then rebound to a builder: the name no
+    # longer means the module, so its compile() is a graph compile again.
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "app.py": (
+            "import graph\n"
+            "from langgraph.graph import StateGraph\n"
+            "from langgraph.types import interrupt\n"
+            "def node(state):\n"
+            "    return interrupt('ok?')\n"
+            "graph = StateGraph(dict)\n"
+            "app = graph.compile()\n"
+        ),
+    })
+    findings = missing_checkpointer_with_interrupts(project)
+    assert [(f.id, f.line) for f in findings] == [("LD204", 7)]
+
+
+def test_ld204_fires_when_a_parameter_reuses_an_imported_module_name(tmp_path):
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "app.py": (
+            "import builder\n"
+            "from langgraph.types import interrupt\n"
+            "def node(state):\n"
+            "    return interrupt('ok?')\n"
+            "def finish(builder):\n"
+            "    return builder.compile()\n"
+        ),
+    })
+    findings = missing_checkpointer_with_interrupts(project)
+    assert [(f.id, f.line) for f in findings] == [("LD204", 6)]
+
+
+def test_ld204_is_a_heuristic_and_cannot_fail_a_build_without_strict(tmp_path):
+    # "Interrupts are used somewhere in this file" is file-wide evidence, so a
+    # .compile() on some other object can still be picked up.
+    from langdoctor.checks import CHECK_REGISTRY
+    from langdoctor.engine import exit_code_for
+
+    project = _write(tmp_path, {
+        "requirements.txt": "langgraph==1.2.7\n",
+        "graph.py": "g = builder.compile(interrupt_before=['human'])\n",
+    })
+    findings = missing_checkpointer_with_interrupts(project)
+
+    assert CHECK_REGISTRY["LD204"].heuristic is True
+    assert [f.heuristic for f in findings] == [True]
+    assert "heuristic" in findings[0].detail
+    assert exit_code_for(findings, fail_on="medium") == 0
+    assert exit_code_for(findings, fail_on="medium", strict=True) == 1

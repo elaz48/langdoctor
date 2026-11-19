@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from ..analysis import call_kwargs, find_calls, load_sources, project_uses, read_project_file
+import ast
+
+from ..analysis import (
+    call_kwargs,
+    find_calls,
+    imported_module_names,
+    load_sources,
+    project_uses,
+    read_project_file,
+)
 from ..finding import Finding
 from . import register_check
 
@@ -77,7 +86,7 @@ def sqlite_saver_concurrency(project) -> list[Finding]:
 
 
 @register_check(
-    id="LD204", category="checkpointer", severity="medium",
+    id="LD204", category="checkpointer", severity="medium", heuristic=True,
     title="Compiled graph with interrupts has no checkpointer",
 )
 def missing_checkpointer_with_interrupts(project) -> list[Finding]:
@@ -86,20 +95,42 @@ def missing_checkpointer_with_interrupts(project) -> list[Finding]:
     findings = []
     for sf in load_sources(project):
         uses_interrupt = bool(find_calls(sf.tree, "interrupt"))
-        for call in find_calls(sf.tree, "compile"):
+        for call in _builder_compile_calls(sf.tree):
             kwargs = call_kwargs(call)
             has_interrupt = (
                 uses_interrupt or "interrupt_before" in kwargs or "interrupt_after" in kwargs
             )
             if has_interrupt and "checkpointer" not in kwargs:
+                # Heuristic: "interrupts are used" is judged per file, and a
+                # platform that injects the checkpointer needs none passed here.
                 findings.append(Finding(
-                    id="LD204", severity="medium",
+                    id="LD204", severity="medium", heuristic=True,
                     title="Compiled graph with interrupts has no checkpointer",
                     detail=(
                         "A graph using interrupts / human-in-the-loop is compiled without a "
-                        "checkpointer, so interrupted runs cannot resume. Pass checkpointer=..."
+                        "checkpointer, so interrupted runs cannot resume. Pass checkpointer=... "
+                        "(heuristic)"
                     ),
                     file=sf.rel, line=call.lineno,
                     fix="Pass checkpointer=... to graph.compile()",
                 ))
     return findings
+
+
+def _builder_compile_calls(tree: ast.Module | None) -> list[ast.Call]:
+    """`.compile(...)` method calls that can belong to a graph builder.
+
+    Leaves out the builtin compile() and module-level functions called through
+    an imported module (re.compile, torch.compile): a module is never a builder.
+    Nodes parse text with regexes all the time, so those were false positives.
+    """
+    modules = imported_module_names(tree)
+    calls = []
+    for call in find_calls(tree, "compile"):
+        receiver = call.func.value if isinstance(call.func, ast.Attribute) else None
+        if receiver is None:
+            continue  # bare compile(...): the builtin, or `from re import compile`
+        if isinstance(receiver, ast.Name) and receiver.id in modules:
+            continue
+        calls.append(call)
+    return calls

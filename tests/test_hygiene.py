@@ -54,3 +54,36 @@ def test_ld502_ignores_first_party_actions(tmp_path):
         ".github/workflows/ci.yml": "steps:\n  - uses: actions/checkout@v4\n",
     })
     assert unpinned_github_actions(project) == []
+
+
+def test_ld502_ignores_actions_that_are_only_mentioned_in_comments(tmp_path):
+    # A commented-out step and prose that quotes a `uses:` line run nothing.
+    project = _write(tmp_path, {
+        ".github/workflows/ci.yml": (
+            "jobs:\n"
+            "  build:\n"
+            "    steps:\n"
+            "      # - uses: some-org/disabled-action@v1\n"
+            "      # the way `uses: some-org/quoted-action@v2` would\n"
+            "      - run: echo uses: some-org/echoed-action@v3\n"
+        ),
+    })
+    assert unpinned_github_actions(project) == []
+
+
+def test_ld502_flags_every_form_of_a_real_uses_key(tmp_path):
+    project = _write(tmp_path, {
+        ".github/workflows/ci.yml": (
+            "jobs:\n"
+            "  build:\n"
+            "    steps:\n"
+            "      - uses: some-org/first@v1\n"
+            "      - name: second\n"
+            "        uses: 'some-org/second@main'  # a trailing comment\n"
+            "      -   uses: \"some-org/third@v3\"\n"
+            "  reusable:\n"
+            "    uses: some-org/workflows/.github/workflows/build.yml@v4\n"
+        ),
+    })
+    findings = unpinned_github_actions(project)
+    assert [f.line for f in findings] == [4, 6, 7, 9]

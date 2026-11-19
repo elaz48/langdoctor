@@ -93,6 +93,28 @@ def import_entries(tree: ast.Module | None) -> list[tuple[str, str, int]]:
     return out
 
 
+def imported_module_names(tree: ast.Module | None) -> set[str]:
+    """Names that mean a module everywhere in the file.
+
+    Bound by `import x`, `import x as y` or `import a.b`, and never rebound by
+    an assignment, a loop/with target or a function parameter: after
+    `import graph; graph = StateGraph(...)` the name is a builder, not a module.
+    `from x import y` is left out on purpose: y may be an object, not a module.
+    """
+    imported: set[str] = set()
+    rebound: set[str] = set()
+    if tree is None:
+        return imported
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            rebound.add(node.id)
+        elif isinstance(node, ast.arg):
+            rebound.add(node.arg)
+    return imported - rebound
+
+
 def project_uses(project, prefix: str) -> bool:
     """True if a dependency or an import top-level starts with `prefix`."""
     prefix_n = normalize_name(prefix)
